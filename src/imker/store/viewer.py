@@ -32,7 +32,7 @@ class RepositoryViewer:
         dt = [
             [i]
             + [datetime.datetime.fromtimestamp(c.stat().st_ctime).isoformat()]
-            + c.as_posix().split("/")[:-1]
+            + c.as_posix().split("/")[-6:-1]
             + [c.as_posix()]
             for i, c in enumerate(cachefiles)
         ]
