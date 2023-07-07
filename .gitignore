@@ -1,9 +1,3 @@
-# For imker
-log/
-checkpoint/
-.devcontainer/
-docker_files/
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
