@@ -1,4 +1,4 @@
-from ..inspection import parse_arguments, get_identifier, is_dict_or_box, is_func_or_class
+from ..inspection import parse_arguments, get_identifier, is_dict_or_box, is_func_or_class, hasfunc
 from .config import TaskConfig
 from ..utils import set_seed
 from ..store.cacher import PickledBz2Cacher
@@ -221,7 +221,7 @@ class Task(object):
         return X_, y_
 
     def __call__(self, X, y=None, proba: bool = False, *args, **kwargs):
-        if hasattr(self.task, "predict") or hasattr(self.task, "predict_proba"):
+        if hasfunc(self.task, "predict") or hasfunc(self.task, "predict_proba"):
             if self.__load_from.as_posix() == ".":
                 self.fit(X, y, *args, **kwargs)
             else:
@@ -232,7 +232,7 @@ class Task(object):
             else:
                 return self.predict(X)
 
-        elif hasattr(self.task, "transform"):
+        elif hasfunc(self.task, "transform"):
             if self.__load_from.as_posix() == ".":
                 self.fit(X, y, *args, **kwargs)
             else:
@@ -240,7 +240,7 @@ class Task(object):
 
             return self.transform(X, y)
 
-        elif hasattr(self.task, "split"):
+        elif hasfunc(self.task, "split"):
             return self.split(X, y)
 
         else:

@@ -14,6 +14,8 @@ def is_picklable(obj):
     except:
         return False
 
+def hasfunc(obj, attr):
+    return hasattr(obj, attr) and callable(getattr(obj, attr))
 
 def is_dict_or_box(obj):
     return isinstance(obj, dict) or isinstance(obj, DataContainer)
