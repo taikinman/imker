@@ -1,0 +1,42 @@
+[tool.poetry]
+name = "imker"
+version = "0.0.1"
+description = "An easy-to-use ML pipeline package for Python."
+authors = ["taikinman <okipedia6161@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.7"
+numpy = "^1.25.0"
+pandas = "^2.0.3"
+PyYAML = "^6.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+black = "^23.3.0"
+flake8 = "^6.0.0"
+mypy = "^1.4.1"
+isort = "^5.12.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+
+[tool.isort]
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+profile = "black"
+
+[tool.flake8]
+max-line-length = 100
+max-complexity = 18
+ignore = "E203,E266,W503,"
+
+[tool.mypy]
+no_strict_optional = true
+ignore_missing_imports = true
+check_untyped_defs = true
