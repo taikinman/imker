@@ -5,7 +5,7 @@ from collections import OrderedDict
 
 class DataContainer(OrderedDict):
     """
-    An Container class that provides dot access to its elements.
+    A Container class that provides dot access to its elements.
     Refer to https://github.com/cdgriffith/Box
     """
 
