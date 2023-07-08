@@ -3,12 +3,14 @@ An easy-to-use ML pipeline package for Python inspired by scikit-learn pipeline 
 
 # Installation
 ## Requirements
-- python >= 3.7
+- python >= 3.9
 
 ## Dependencies
 - [numpy](https://github.com/numpy/numpy)
 - [pandas](https://github.com/pandas-dev/pandas)
 - [pyyaml](https://github.com/yaml/pyyaml)
+
+more details, see ./pyproject.toml
 
 ## using pip
 ```
@@ -21,4 +23,4 @@ poetry add git+https://github.com/taikinman/imker.git
 ```
 
 # Basic Usage
-See example/*
+See ./example/*

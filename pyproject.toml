@@ -6,7 +6,7 @@ authors = ["taikinman <okipedia6161@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.9"
 numpy = "^1.25.0"
 pandas = "^2.0.3"
 PyYAML = "^6.0"
