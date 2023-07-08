@@ -1,4 +1,4 @@
-from ..inspection import parse_arguments, get_identifier, is_dict_or_box, is_func_or_class, hasfunc
+from ..inspection import parse_arguments, get_identifier, is_dictlike, is_func_or_class, hasfunc
 from .config import TaskConfig
 from ..utils import set_seed
 from ..store.cacher import PickledBz2Cacher
@@ -278,13 +278,13 @@ class Task(object):
 
     def format_config(self, config: dict):
         for k, v in config.items():
-            if is_dict_or_box(v):
+            if is_dictlike(v):
                 config[k] = self.format_config(v)
             elif is_func_or_class(v):
                 config[k] = v.__qualname__
             elif isinstance(v, list):
                 for i in range(len(v)):
-                    if is_dict_or_box(v):
+                    if is_dictlike(v):
                         config[k] = self.format_config(v)
                     elif is_func_or_class(v[i]):
                         config[k][i] = config[k][i].__qualname__
