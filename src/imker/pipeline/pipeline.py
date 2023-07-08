@@ -294,7 +294,7 @@ class Pipeline(object):
             assert model is not None, "pipeline needs model but you don't pass model argument"
 
             pipe.set_model(model)
-            if "fold0" in config["model"]:
+            if pipe.splitter is not None:
                 for fold, c in config["model"].items():
                     _check_load_attrs(pipe.model[fold], c, "model")
 
