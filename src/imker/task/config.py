@@ -16,15 +16,6 @@ yaml.add_representer(OrderedDict, represent_odict)
 yaml.add_representer(DataContainer, represent_odict)
 
 
-def get_path(path):
-    if isinstance(path, str):
-        return Path(path)
-    elif isinstance(path, Path):
-        return path
-    else:
-        raise AssertionError
-
-
 @dataclass
 class TaskConfig:
     task: Any
@@ -32,7 +23,7 @@ class TaskConfig:
     fit_params: dict = field(default_factory=dict)
     transform_params: dict = field(default_factory=dict)
     predict_params: dict = field(default_factory=dict)
-    repo_dir: Path = get_path(".imker")
+    repo_dir: Path = Path(".imker")
     cache_processor: BaseCacher = PickledBz2Cacher
     cache: bool = False
     load_from: str = ""
