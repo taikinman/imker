@@ -10,9 +10,9 @@ from .cacher import PickledBz2Cacher
 class RepositoryViewer:
     def __init__(
         self,
-        repo_dir: str,
+        repo_dir: Union[str, Path],
     ):
-        self.repo_dir = repo_dir
+        self.repo_dir = Path(repo_dir)
 
     def search_repo(self):
         savedir = Path(self.repo_dir)
