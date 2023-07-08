@@ -3,8 +3,9 @@ import numpy as np
 import pandas as pd
 import pickle
 from inspect import isclass, isfunction, getsource, signature
-from .container.base import DataContainer
 import re
+from collections import OrderedDict
+from .container.base import DataContainer
 
 
 def is_picklable(obj):
@@ -14,9 +15,11 @@ def is_picklable(obj):
     except:
         return False
 
+def hasfunc(obj, attr):
+    return hasattr(obj, attr) and callable(getattr(obj, attr))
 
-def is_dict_or_box(obj):
-    return isinstance(obj, dict) or isinstance(obj, DataContainer)
+def is_dictlike(obj):
+    return isinstance(obj, dict) or isinstance(obj, DataContainer) or isinstance(obj, OrderedDict)
 
 
 def is_func_or_class(obj):
