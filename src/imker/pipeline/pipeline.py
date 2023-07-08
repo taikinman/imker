@@ -126,6 +126,7 @@ class Pipeline(object):
                 )
         else:
             X_, y_ = self.preprocessor(X, y)
+            self.model.reset_identifier()
             self.model(X_, y_)
 
         self.dump()

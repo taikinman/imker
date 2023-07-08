@@ -1,7 +1,7 @@
 from .task import Task
 from ..inspection import parse_arguments
 from ..container.base import DataContainer
-from typing import Any
+from typing import Any, List
 
 
 class _Base(object):
@@ -44,7 +44,7 @@ class BaseModel(_Base):
     def forward(self, X: Any, y: Any = None, proba: bool = False):
         raise NotImplementedError
 
-    def __call__(self, X: Any, y: Any = None, proba: bool = False, eval_set: tuple = None):
+    def __call__(self, X: Any, y: Any = None, proba: bool = False, eval_set: List[tuple] = None):
         kwargs = {}
         args = parse_arguments(self.forward)
         if "proba" in args:

@@ -5,8 +5,8 @@ from collections import OrderedDict
 
 class DataContainer(OrderedDict):
     """
-    An Container class that provides dot access to its elements.
-    Reffer to https://github.com/cdgriffith/Box
+    A Container class that provides dot access to its elements.
+    Refer to https://github.com/cdgriffith/Box
     """
 
     def __getattr__(self, key: str) -> Any:
