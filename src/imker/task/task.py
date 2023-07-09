@@ -26,7 +26,7 @@ class Task(object):
         self.__load_from = Path(self.config.load_from)
 
     def fit(self, X, y=None, *args, **kwargs):
-        base_save_dir = self.__repo_dir / "fit" / self.cls_name
+        base_save_dir = self.__repo_dir / "task/fit" / self.cls_name
 
         set_seed(self.config.seed)
         fit_args = parse_arguments(self.task.fit)
@@ -66,7 +66,7 @@ class Task(object):
         return self
 
     def transform(self, X, y=None):
-        base_save_dir = self.__repo_dir / "transform" / self.cls_name
+        base_save_dir = self.__repo_dir / "task/transform" / self.cls_name
         set_seed(self.config.seed)
 
         args = parse_arguments(self.task.transform)
@@ -109,7 +109,7 @@ class Task(object):
         return result
 
     def predict(self, X):
-        base_save_dir = self.__repo_dir / "predict" / self.cls_name
+        base_save_dir = self.__repo_dir / "task/predict" / self.cls_name
         set_seed(self.config.seed)
 
         if self.__cache:
@@ -141,7 +141,7 @@ class Task(object):
         return result
 
     def predict_proba(self, X):
-        base_save_dir = self.__repo_dir / "predict_proba" / self.cls_name
+        base_save_dir = self.__repo_dir / "task/predict_proba" / self.cls_name
         set_seed(self.config.seed)
 
         if self.__cache:
@@ -182,7 +182,7 @@ class Task(object):
         return self.task.get_n_splits()
 
     def split(self, X, y=None):
-        base_save_dir = self.__repo_dir / "split" / self.cls_name
+        base_save_dir = self.__repo_dir / "task/split" / self.cls_name
         split_id_ = self.get_identifier(self.task, X, y)
         save_to = base_save_dir / split_id_ / f"task.{self.__format}"
 
