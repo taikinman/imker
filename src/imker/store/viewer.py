@@ -12,7 +12,7 @@ class RepositoryViewer:
         self,
         repo_dir: Union[str, Path],
     ):
-        self.repo_dir = Path(repo_dir)
+        self.repo_dir = Path(repo_dir) / "task"
 
     def search_repo(self):
         savedir = Path(self.repo_dir)
@@ -32,7 +32,8 @@ class RepositoryViewer:
         dt = [
             [i]
             + [datetime.datetime.fromtimestamp(c.stat().st_ctime).isoformat()]
-            + c.as_posix().split("/")[-6:-1]
+            + [c.as_posix().split("/")[-7]]
+            + c.as_posix().split("/")[-5:-1]
             + [c.as_posix()]
             for i, c in enumerate(cachefiles)
         ]
