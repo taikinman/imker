@@ -24,7 +24,6 @@ class DefaultScorer(BaseScorer):
 
 class Pipeline(object):
     def __init__(self, repo_dir: str, exp_name: str, pipeline_name: str):
-
         self.repo_dir = Path(repo_dir)
         self.exp_name = Path(exp_name)
         self.pipeline_name = Path(pipeline_name)
@@ -84,21 +83,24 @@ class Pipeline(object):
         self.postprocessor.set_repo_dir(self.repo_dir)
 
     def test_preprocessing(self, X, y=None):
-        results = self.preprocessor(X, y)
-        self.preprocessor.reset_identifier()
-        return results
+        return self.preprocessor.test(X, y)
+
+    def test_split(self, X, y=None):
+        if self.splitter is not None:
+            for i, oof in enumerate(self.splitter.test(*self.preprocessor.test(X, y))):
+                yield oof
+        else:
+            raise AssertionError("splitter is not defined")
 
     def test_oof_preprocessing(self, X, y=None):
         if self.splitter is not None:
-            for i, oof in enumerate(self.splitter(*self.preprocessor(X, y))):
-                oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"](
+            for i, oof in enumerate(self.splitter.test(*self.preprocessor.test(X, y))):
+                oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"].test(
                     oof.X_train, oof.y_train
                 )
-                oof.X_valid, oof.y_valid = self.oof_preprocessor[f"fold{i}"](
+                oof.X_valid, oof.y_valid = self.oof_preprocessor[f"fold{i}"].test(
                     oof.X_valid, oof.y_valid
                 )
-
-                self.oof_preprocessor[f"fold{i}"].reset_identifier()
 
                 yield oof
         else:
@@ -109,7 +111,6 @@ class Pipeline(object):
 
         if self.splitter is not None:
             for i, oof in enumerate(self.splitter(*self.preprocessor(X, y))):
-
                 self.oof_preprocessor[f"fold{i}"].reset_identifier()
 
                 oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"](
@@ -132,12 +133,6 @@ class Pipeline(object):
         self.dump()
 
         return self
-
-    def _run_predict(self, model, X, proba=False):
-        if proba:
-            return model.predict_proba(X)
-        else:
-            return model.predict(X)
 
     def validate(self, X, y=None, proba=False, calc_metrics: bool = True):
         preds = DataContainer()

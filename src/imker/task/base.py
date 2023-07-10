@@ -55,6 +55,11 @@ class BaseModel(_Base):
 
         return self.forward(X, y, **kwargs)
 
+    def test(self, X: Any, y: Any = None, proba: bool = False, eval_set: List[tuple] = None):
+        results = self.__call__(X=X, y=y, proba=proba, eval_set=eval_set)
+        self.reset_identifier()
+        return results
+
 
 class BaseSplitter(_Base):
     def get_n_splits(self):
@@ -66,6 +71,11 @@ class BaseSplitter(_Base):
     def __call__(self, X: Any, y: Any = None, *args, **kwargs):
         return self.split(X, y, *args, **kwargs)
 
+    def test(self, X: Any, y: Any = None, *args, **kwargs):
+        results = self.__call__(X=X, y=y, *args, **kwargs)
+        self.reset_identifier()
+        return results
+
 
 class BaseProcessor(_Base):
     def forward(self, X: Any, y: Any = None):
@@ -73,6 +83,11 @@ class BaseProcessor(_Base):
 
     def __call__(self, X: Any, y: Any = None):
         return self.forward(X, y)
+
+    def test(self, X: Any, y: Any = None):
+        results = self.__call__(X=X, y=y)
+        self.reset_identifier()
+        return results
 
 
 class BaseScorer(object):
