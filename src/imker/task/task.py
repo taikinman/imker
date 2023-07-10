@@ -1,4 +1,11 @@
-from ..inspection import parse_arguments, get_identifier, is_dictlike, is_func_or_class, hasfunc
+from ..inspection import (
+    parse_arguments,
+    get_identifier,
+    is_dictlike,
+    is_func_or_class,
+    hasfunc,
+    get_code,
+)
 from .config import TaskConfig
 from ..utils import set_seed
 from ..store.cacher import PickledBz2Cacher
@@ -173,6 +180,7 @@ class Task(object):
         return result
 
     def get_identifier(self, task, *args, **kwargs):
+        # src_hash = Path(get_identifier(src=get_code(task)))
         argument_hash = Path(get_identifier(*args, **kwargs))
         state_hash = Path(get_identifier(state=task.__dict__))
         save_to = argument_hash / state_hash
@@ -245,6 +253,11 @@ class Task(object):
 
         else:
             raise AssertionError
+
+    def test(self, X, y=None, proba: bool = False, *args, **kwargs):
+        results = self.__call__(X=X, y=y, proba=proba, *args, **kwargs)
+        self.reset_identifier()
+        return results
 
     def reset_identifier(self):
         self.__load_from = Path("")
