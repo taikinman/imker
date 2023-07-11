@@ -160,10 +160,15 @@ class Pipeline(object):
                 if self.scorer is not None and calc_metrics:
                     self.__scores[f"fold{i}"] = self.scorer(oof.y_valid, val_preds)
 
-        if calc_metrics:
-            self.__scores = pd.concat(self.__scores, axis=1)
-        preds = self.organize_validation_results(preds)
-        return preds
+            if calc_metrics:
+                self.__scores = pd.concat(self.__scores, axis=1)
+
+            preds = self.organize_validation_results(preds)
+
+            return preds
+        
+        else:
+            raise AssertionError("splitter is not configured.")
 
     def inference(self, X_test, proba=False):
         preds = DataContainer()
@@ -181,11 +186,14 @@ class Pipeline(object):
                     oof_preds = self.postprocessor(X_oof, oof_preds)
 
                 preds[f"fold{i}"] = oof_preds
+
+            preds = self.organize_inference_results(preds)
+
         else:
             X_, _ = self.preprocessor(X_test, None)
             preds = self.model(X_, proba=proba)
+            preds = self.postprocessor(X_, preds)
 
-        preds = self.organize_inference_results(preds)
         return preds
 
     def get_scores(self):
