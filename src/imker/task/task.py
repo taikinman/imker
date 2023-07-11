@@ -189,10 +189,10 @@ class Task(object):
     def get_n_splits(self):
         return self.task.get_n_splits()
 
-    def split(self, X, y=None):
+    def split(self, X, y=None, *args, **kwargs):
         set_seed(self.config.seed)
         base_save_dir = self.__repo_dir / "task/split" / self.cls_name
-        split_id_ = self.get_identifier(self.task, X, y)
+        split_id_ = self.get_identifier(self.task, X, y, *args, **kwargs)
         save_to = base_save_dir / split_id_ / f"task.{self.__format}"
 
         if ~save_to.exists():
@@ -204,7 +204,7 @@ class Task(object):
 
         self.__load_from = save_to
 
-        for idx_tr, idx_val in self.task.split(X, y):
+        for idx_tr, idx_val in self.task.split(X, y, *args, **kwargs):
             outputs = DataContainer()
             outputs.X_train, outputs.y_train = self._split_dataset(X, y, idx_tr)
             outputs.X_valid, outputs.y_valid = self._split_dataset(X, y, idx_val)
@@ -250,7 +250,7 @@ class Task(object):
             return self.transform(X, y)
 
         elif hasfunc(self.task, "split"):
-            return self.split(X, y)
+            return self.split(X, y, *args, **kwargs)
 
         else:
             raise AssertionError
