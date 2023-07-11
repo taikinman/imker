@@ -190,6 +190,7 @@ class Task(object):
         return self.task.get_n_splits()
 
     def split(self, X, y=None):
+        set_seed(self.config.seed)
         base_save_dir = self.__repo_dir / "task/split" / self.cls_name
         split_id_ = self.get_identifier(self.task, X, y)
         save_to = base_save_dir / split_id_ / f"task.{self.__format}"
