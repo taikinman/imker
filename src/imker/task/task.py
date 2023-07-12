@@ -180,9 +180,13 @@ class Task(object):
         return result
 
     def get_identifier(self, task, *args, **kwargs):
-        # src_hash = Path(get_identifier(src=get_code(task)))
         argument_hash = Path(get_identifier(*args, **kwargs))
-        state_hash = Path(get_identifier(state=task.__dict__))
+        if self.config.cache_strict:
+            src_hash = get_identifier(src=get_code(task))
+            state_hash = Path(get_identifier(src=src_hash, state=task.__dict__))
+        else:
+            state_hash = Path(get_identifier(state=task.__dict__))
+
         save_to = argument_hash / state_hash
         return save_to
 

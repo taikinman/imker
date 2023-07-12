@@ -26,6 +26,7 @@ class TaskConfig:
     repo_dir: Path = Path(".imker")
     cache_processor: BaseCacher = PickledBz2Cacher
     cache: bool = False
+    cache_strict: bool = True
     load_from: str = ""
     seed: int = 42
 
