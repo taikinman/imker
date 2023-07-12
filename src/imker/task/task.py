@@ -40,10 +40,10 @@ class Task(object):
 
         if "X" in fit_args and "y" in fit_args:
             fit_id_ = self.get_identifier(
-                self.task, "fit", X, y, *args, **kwargs, **self.config.fit_params
+                self.task, X, y, *args, **kwargs, **self.config.fit_params
             )
         else:
-            fit_id_ = self.get_identifier(self.task, "fit", X, *args, **kwargs, **self.config.fit_params)
+            fit_id_ = self.get_identifier(self.task, X, *args, **kwargs, **self.config.fit_params)
 
         save_to = base_save_dir / fit_id_ / f"task.{self.__format}"
 
@@ -53,12 +53,12 @@ class Task(object):
             if "X" in fit_args and "y" in fit_args:
                 self.task.fit(X, y, *args, **kwargs, **self.config.fit_params)
                 fit_id_ = self.get_identifier(
-                    self.task, "fit", X, y, *args, **kwargs, **self.config.fit_params
+                    self.task, X, y, *args, **kwargs, **self.config.fit_params
                 )
             else:
                 self.task.fit(X, *args, **kwargs, **self.config.fit_params)
                 fit_id_ = self.get_identifier(
-                    self.task, "fit", X, *args, **kwargs, **self.config.fit_params
+                    self.task, X, *args, **kwargs, **self.config.fit_params
                 )
 
             save_to = base_save_dir / fit_id_ / f"task.{PickledBz2Cacher.format()}"
@@ -80,9 +80,9 @@ class Task(object):
 
         if self.__cache:
             if "X" in args and "y" in args:
-                transform_id_ = self.get_identifier(self.task, "transform", X, y, **self.config.transform_params)
+                transform_id_ = self.get_identifier(self.task, X, y, **self.config.transform_params)
             else:
-                transform_id_ = self.get_identifier(self.task, "transform", X, **self.config.transform_params)
+                transform_id_ = self.get_identifier(self.task, X, **self.config.transform_params)
 
             save_to = base_save_dir / transform_id_ / f"task.{self.__format}"
 
@@ -92,12 +92,12 @@ class Task(object):
                 if "X" in args and "y" in args:
                     result = self.task.transform(X, y, **self.config.transform_params)
                     transform_id_ = self.get_identifier(
-                        self.task, "transform", X, y, **self.config.transform_params
+                        self.task, X, y, **self.config.transform_params
                     )
                 else:
                     result = self.task.transform(X, **self.config.transform_params)
                     transform_id_ = self.get_identifier(
-                        self.task, "transform", X, **self.config.transform_params
+                        self.task, X, **self.config.transform_params
                     )
 
                 save_to = base_save_dir / transform_id_ / f"task.{self.__format}"
@@ -121,7 +121,7 @@ class Task(object):
 
         if self.__cache:
             predict_id_ = self.get_identifier(
-                self.task, "predict", X, proba=False, **self.config.predict_params
+                self.task, X, proba=False, **self.config.predict_params
             )
 
             save_to = base_save_dir / predict_id_ / f"task.{self.__format}"
@@ -132,7 +132,7 @@ class Task(object):
                 result = self.task.predict(X, **self.config.predict_params)
 
                 predict_id_ = self.get_identifier(
-                    self.task, "predict", X, proba=False, **self.config.predict_params
+                    self.task, X, proba=False, **self.config.predict_params
                 )
 
                 save_to = base_save_dir / predict_id_ / f"task.{self.__format}"
@@ -153,7 +153,7 @@ class Task(object):
 
         if self.__cache:
             predict_id_ = self.get_identifier(
-                self.task, "predict_proba", X, proba=True, **self.config.predict_params
+                self.task, X, proba=True, **self.config.predict_params
             )
 
             save_to = base_save_dir / predict_id_ / f"task.{self.__format}"
@@ -164,7 +164,7 @@ class Task(object):
                 result = self.task.predict_proba(X, **self.config.predict_params)
 
                 predict_id_ = self.get_identifier(
-                    self.task, "predict_proba", X, proba=True, **self.config.predict_params
+                    self.task, X, proba=True, **self.config.predict_params
                 )
 
                 save_to = base_save_dir / predict_id_ / f"task.{self.__format}"
@@ -179,11 +179,10 @@ class Task(object):
 
         return result
 
-    def get_identifier(self, task, method: str, *args, **kwargs):
+    def get_identifier(self, task, *args, **kwargs):
         argument_hash = Path(get_identifier(*args, **kwargs))
         if self.config.cache_strict:
-            state_hash = Path(get_identifier(src=get_code(getattr(self.config.task, method)), 
-                                             state=task.__dict__))
+            state_hash = Path(get_identifier(src=get_code(self.config.task), state=task.__dict__))
         else:
             state_hash = Path(get_identifier(state=task.__dict__))
 
@@ -196,7 +195,7 @@ class Task(object):
     def split(self, X, y=None, *args, **kwargs):
         set_seed(self.config.seed)
         base_save_dir = self.__repo_dir / "task/split" / self.cls_name
-        split_id_ = self.get_identifier(self.task, "split", X, y, *args, **kwargs)
+        split_id_ = self.get_identifier(self.task, X, y, *args, **kwargs)
         save_to = base_save_dir / split_id_ / f"task.{self.__format}"
 
         if ~save_to.exists():
