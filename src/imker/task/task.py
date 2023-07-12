@@ -182,8 +182,7 @@ class Task(object):
     def get_identifier(self, task, *args, **kwargs):
         argument_hash = Path(get_identifier(*args, **kwargs))
         if self.config.cache_strict:
-            src_hash = get_identifier(src=get_code(task))
-            state_hash = Path(get_identifier(src=src_hash, state=task.__dict__))
+            state_hash = Path(get_identifier(src=get_code(self.config.task), state=task.__dict__))
         else:
             state_hash = Path(get_identifier(state=task.__dict__))
 
