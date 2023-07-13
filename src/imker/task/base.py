@@ -36,10 +36,6 @@ class BaseTask(object):
     def fit(self, X: Any, y: Any = None):
         return self
 
-    def transform(self, X: Any) -> Any:
-        raise NotImplementedError
-
-
 class BaseModel(_Base):
     def forward(self, X: Any, y: Any = None, proba: bool = False):
         raise NotImplementedError
