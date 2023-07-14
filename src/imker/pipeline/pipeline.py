@@ -4,6 +4,7 @@ import pandas as pd
 import pickle
 from pathlib import Path
 import yaml
+from copy import deepcopy as dc
 
 from ..container.base import DataContainer
 from ..task.base import BaseProcessor, BaseSplitter, BaseModel, BaseScorer
@@ -83,18 +84,18 @@ class Pipeline(object):
         self.postprocessor.set_repo_dir(self.repo_dir)
 
     def test_preprocessing(self, X, y=None):
-        return self.preprocessor.test(X, y)
+        return self.preprocessor.test(dc(X), dc(y))
 
     def test_split(self, X, y=None):
         if self.splitter is not None:
-            for i, oof in enumerate(self.splitter.test(*self.preprocessor.test(X, y))):
+            for i, oof in enumerate(self.splitter.test(*self.preprocessor.test(dc(X), dc(y)))):
                 yield oof
         else:
             raise AssertionError("splitter is not defined")
 
     def test_oof_preprocessing(self, X, y=None):
         if self.splitter is not None:
-            for i, oof in enumerate(self.splitter.test(*self.preprocessor.test(X, y))):
+            for i, oof in enumerate(self.splitter.test(*self.preprocessor.test(dc(X), dc(y)))):
                 oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"].test(
                     oof.X_train, oof.y_train
                 )
@@ -110,7 +111,7 @@ class Pipeline(object):
         self.preprocessor.reset_identifier()
 
         if self.splitter is not None:
-            for i, oof in enumerate(self.splitter(*self.preprocessor(X, y))):
+            for i, oof in enumerate(self.splitter(*self.preprocessor(dc(X), dc(y)))):
                 self.oof_preprocessor[f"fold{i}"].reset_identifier()
 
                 oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"](
@@ -126,7 +127,7 @@ class Pipeline(object):
                     oof.X_train, oof.y_train, eval_set=[(oof.X_valid, oof.y_valid)]
                 )
         else:
-            X_, y_ = self.preprocessor(X, y)
+            X_, y_ = self.preprocessor(dc(X), dc(y))
             self.model.reset_identifier()
             self.model(X_, y_)
 
@@ -139,7 +140,7 @@ class Pipeline(object):
         self.__scores = DataContainer()
 
         if self.splitter is not None:
-            for i, oof in enumerate(self.splitter(*self.preprocessor(X, y))):
+            for i, oof in enumerate(self.splitter(*self.preprocessor(dc(X), dc(y)))):
                 oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"](
                     oof.X_train, oof.y_train
                 )
@@ -166,13 +167,13 @@ class Pipeline(object):
             preds = self.organize_validation_results(preds)
 
             return preds
-        
+
         else:
             raise AssertionError("splitter is not configured.")
 
     def inference(self, X_test, proba=False):
         preds = DataContainer()
-        X_, _ = self.preprocessor(X_test, None)
+        X_, _ = self.preprocessor(dc(X_test), None)
         if self.splitter is not None:
             for i in range(self.splitter.get_n_splits()):
                 X_oof, _ = self.oof_preprocessor[f"fold{i}"](X_, None)
