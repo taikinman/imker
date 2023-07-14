@@ -16,12 +16,12 @@ An easy-to-use ML pipeline package for the purpose of speeding up your experimen
 
 <details>
 <summary>Low learning cost</summary>
-You don't need to learn a lot of package-specific terms and manner to define your pipeline. Each task used for imker are defined with sklearn-like interface. Existing sklearn modules are also used in imker as it is. Then each task are connected to other task with PyTorch-like interface. Pipeline has 5 components, PreProcessor, Splitter, OOFPreProcessor, Model, and PostProcessor. You can create complex pipeline intuitively.
+You don't need to learn a lot of package-specific terms and manner to define your pipeline. Each task used for imker are defined with sklearn-like interface. Existing sklearn modules are also used in imker as it is. Then, each task is connected to other tasks with PyTorch-like interface. The pipeline consists 5 components, PreProcessor, Splitter, OOFPreProcessor, Model, and PostProcessor. You can intuitively create a complex pipeline.
 </details>
 
 <details>
 <summary>High modularity of task</summary>
-sklearn-like task provides reusability in other place or other project easily. Here is an example of user-defined task.
+A sklearn-like task provides reusability in other places or other projects. Here is an example of a user-defined task. Even if the dependencies between other tasks is changed, in many cases, you don't need to modify the source code of the task because of modularity.
 
 ```python
 class DropCols(BaseTask):
@@ -37,7 +37,7 @@ class DropCols(BaseTask):
 
 <details>
 <summary>High readability</summary>
-PyTorch-like interface allows user to understand how pipeline perform without large effort even if pipeline grows complex. Here is an example of preprocessing components of pipeline with titanic dataset.
+PyTorch-like interface allows user to understand how pipeline perform without large effort even if pipeline grows complex. Here is an example of the preprocessing components of the pipeline with the titanic dataset.
 
 ```python
 class PreProcessor(BaseProcessor):
@@ -68,12 +68,32 @@ class PreProcessor(BaseProcessor):
 
 <details>
 <summary>Highly flexible cache</summary>
-Imker can control how-to-cache outputs from each task easily. If you want to get specific intermediate outputs with the format you want, you can do it. If you don't need to cache from the viewpoint of process speed or storage capacity, you can control whether cache or not, task by task. These behaviour can be specified through `TaskConfig` .
+Imker can easily control how to cache outputs from each task. If you want to obtain specific intermediate outputs in the desired format, you can do so. When you don't need to cache outputs due to process speed or storage capacity considerations, you can choose whether or not to cache task-by-task basis. These behaviors can be specified through the TaskConfig.
+
+To cache the results of transform(), predict() or predict_proba(), you just pass True to argument cache.
+
+```python
+Task(TaskConfig(task=..., 
+                cache=True
+                ))
+```
+
+By default, a hash is generated from the source code, input data, and the state of the task. If you don't want to include the source code of the task when generating the hash for various reasons, you can pass False to the cache_strict argument.
+
+```python
+Task(TaskConfig(task=..., 
+                cache=True, 
+                cache_strict=False
+                ))
+```
+
+A cached file is a compressed file of a pickled object, and the default format is pbz2. If you want to change the format, you can pass another processor as an argument to the cache_processor of the TaskConfig. You can also specify your custom cache processor.
+
 </details>
 
 <details>
 <summary>Ease of creating inference workflow</summary>
-sklearn interface can easily create inference workflow. So imker also can do it. Once you fit your pipeline to your dataset, you just run inference method for test data as shown below. You don't need to separate training workflow and inference workflow.
+The sklearn interface can easily create the inference workflow, so imker can also do it. Once you fit your pipeline to your dataset, you just run the inference method for test data as shown below. You don't need to separate the training workflow and the inference workflow.
 
 ```python
 pipe.inference(X_test)
