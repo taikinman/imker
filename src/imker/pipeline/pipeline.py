@@ -199,7 +199,6 @@ class Pipeline(object):
             preds = self.organize_inference_results(preds)
 
         else:
-            X_, _ = self.preprocessor(X=dc(X_test), y=None, **dc(kwargs))
             preds = self.model(X_, proba=proba)
             preds = self.postprocessor(X=X_, y=preds)
 
