@@ -83,19 +83,23 @@ class Pipeline(object):
         self.postprocessor = postprocessor(*args, **kwargs)
         self.postprocessor.set_repo_dir(self.repo_dir)
 
-    def test_preprocessing(self, X, y=None):
-        return self.preprocessor.test(dc(X), dc(y))
+    def test_preprocessing(self, X, y=None, **kwargs):
+        return self.preprocessor.test(X=dc(X), y=dc(y), **dc(kwargs))
 
-    def test_split(self, X, y=None):
+    def test_split(self, X, y=None, **kwargs):
         if self.splitter is not None:
-            for i, oof in enumerate(self.splitter.test(*self.preprocessor.test(dc(X), dc(y)))):
+            for i, oof in enumerate(
+                self.splitter.test(*self.preprocessor.test(X=dc(X), y=dc(y), **dc(kwargs)))
+            ):
                 yield oof
         else:
             raise AssertionError("splitter is not defined")
 
-    def test_oof_preprocessing(self, X, y=None):
+    def test_oof_preprocessing(self, X, y=None, **kwargs):
         if self.splitter is not None:
-            for i, oof in enumerate(self.splitter.test(*self.preprocessor.test(dc(X), dc(y)))):
+            for i, oof in enumerate(
+                self.splitter.test(*self.preprocessor.test(X=dc(X), y=dc(y), **dc(kwargs)))
+            ):
                 oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"].test(
                     oof.X_train, oof.y_train
                 )
@@ -107,11 +111,13 @@ class Pipeline(object):
         else:
             raise AssertionError("splitter is not defined")
 
-    def train(self, X, y=None):
+    def train(self, X, y=None, **kwargs):
         self.preprocessor.reset_identifier()
 
         if self.splitter is not None:
-            for i, oof in enumerate(self.splitter(*self.preprocessor(dc(X), dc(y)))):
+            for i, oof in enumerate(
+                self.splitter(*self.preprocessor(X=dc(X), y=dc(y), **dc(kwargs)))
+            ):
                 self.oof_preprocessor[f"fold{i}"].reset_identifier()
 
                 oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"](
@@ -127,7 +133,7 @@ class Pipeline(object):
                     oof.X_train, oof.y_train, eval_set=[(oof.X_valid, oof.y_valid)]
                 )
         else:
-            X_, y_ = self.preprocessor(dc(X), dc(y))
+            X_, y_ = self.preprocessor(X=dc(X), y=dc(y), **dc(kwargs))
             self.model.reset_identifier()
             self.model(X_, y_)
 
@@ -135,12 +141,14 @@ class Pipeline(object):
 
         return self
 
-    def validate(self, X, y=None, proba=False, calc_metrics: bool = True):
+    def validate(self, X, y=None, proba=False, calc_metrics: bool = True, **kwargs):
         preds = DataContainer()
         self.__scores = DataContainer()
 
         if self.splitter is not None:
-            for i, oof in enumerate(self.splitter(*self.preprocessor(dc(X), dc(y)))):
+            for i, oof in enumerate(
+                self.splitter(*self.preprocessor(X=dc(X), y=dc(y), **dc(kwargs)))
+            ):
                 oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"](
                     oof.X_train, oof.y_train
                 )
@@ -171,12 +179,12 @@ class Pipeline(object):
         else:
             raise AssertionError("splitter is not configured.")
 
-    def inference(self, X_test, proba=False):
+    def inference(self, X_test, proba=False, **kwargs):
         preds = DataContainer()
-        X_, _ = self.preprocessor(dc(X_test), None)
+        X_, _ = self.preprocessor(X=dc(X_test), y=None, **dc(kwargs))
         if self.splitter is not None:
             for i in range(self.splitter.get_n_splits()):
-                X_oof, _ = self.oof_preprocessor[f"fold{i}"](X_, None)
+                X_oof, _ = self.oof_preprocessor[f"fold{i}"](X=X_, y=None)
 
                 oof_preds = self.model[f"fold{i}"](X_oof, proba=proba)
 
@@ -191,9 +199,9 @@ class Pipeline(object):
             preds = self.organize_inference_results(preds)
 
         else:
-            X_, _ = self.preprocessor(X_test, None)
+            X_, _ = self.preprocessor(X=dc(X_test), y=None, **dc(kwargs))
             preds = self.model(X_, proba=proba)
-            preds = self.postprocessor(X_, preds)
+            preds = self.postprocessor(X=X_, y=preds)
 
         return preds
 
