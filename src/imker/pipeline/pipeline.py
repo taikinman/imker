@@ -118,14 +118,15 @@ class Pipeline(object):
             for i, oof in enumerate(
                 self.splitter(*self.preprocessor(X=dc(X), y=dc(y), **dc(kwargs)))
             ):
-                self.oof_preprocessor[f"fold{i}"].reset_identifier()
+                if self.oof_preprocessor is not None:
+                    self.oof_preprocessor[f"fold{i}"].reset_identifier()
 
-                oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"](
-                    oof.X_train, oof.y_train
-                )
-                oof.X_valid, oof.y_valid = self.oof_preprocessor[f"fold{i}"](
-                    oof.X_valid, oof.y_valid
-                )
+                    oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"](
+                        oof.X_train, oof.y_train
+                    )
+                    oof.X_valid, oof.y_valid = self.oof_preprocessor[f"fold{i}"](
+                        oof.X_valid, oof.y_valid
+                    )
 
                 self.model[f"fold{i}"].reset_identifier()
 
@@ -149,12 +150,13 @@ class Pipeline(object):
             for i, oof in enumerate(
                 self.splitter(*self.preprocessor(X=dc(X), y=dc(y), **dc(kwargs)))
             ):
-                oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"](
-                    oof.X_train, oof.y_train
-                )
-                oof.X_valid, oof.y_valid = self.oof_preprocessor[f"fold{i}"](
-                    oof.X_valid, oof.y_valid
-                )
+                if self.oof_preprocessor is not None:
+                    oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"](
+                        oof.X_train, oof.y_train
+                    )
+                    oof.X_valid, oof.y_valid = self.oof_preprocessor[f"fold{i}"](
+                        oof.X_valid, oof.y_valid
+                    )
 
                 val_preds = self.model[f"fold{i}"](oof.X_valid, proba=proba)
 
@@ -184,9 +186,11 @@ class Pipeline(object):
         X_, _ = self.preprocessor(X=dc(X_test), y=None, **dc(kwargs))
         if self.splitter is not None:
             for i in range(self.splitter.get_n_splits()):
-                X_oof, _ = self.oof_preprocessor[f"fold{i}"](X=X_, y=None)
-
-                oof_preds = self.model[f"fold{i}"](X_oof, proba=proba)
+                if self.oof_preprocessor is not None:
+                    X_oof, _ = self.oof_preprocessor[f"fold{i}"](X=X_, y=None)
+                    oof_preds = self.model[f"fold{i}"](X_oof, proba=proba)
+                else:
+                    oof_preds = self.model[f"fold{i}"](X_, proba=proba)
 
                 if isinstance(oof_preds, dict):
                     oof_preds = DataContainer(oof_preds)
