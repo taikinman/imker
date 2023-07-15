@@ -36,6 +36,7 @@ class BaseTask(object):
     def fit(self, X: Any, y: Any = None):
         return self
 
+
 class BaseModel(_Base):
     def forward(self, X: Any, y: Any = None, proba: bool = False):
         raise NotImplementedError
@@ -74,14 +75,14 @@ class BaseSplitter(_Base):
 
 
 class BaseProcessor(_Base):
-    def forward(self, X: Any, y: Any = None):
+    def forward(self, X: Any, y: Any = None, **kwargs):
         raise NotImplementedError
 
-    def __call__(self, X: Any, y: Any = None):
-        return self.forward(X, y)
+    def __call__(self, X: Any, y: Any = None, **kwargs):
+        return self.forward(X, y, **kwargs)
 
-    def test(self, X: Any, y: Any = None):
-        results = self.__call__(X=X, y=y)
+    def test(self, X: Any, y: Any = None, **kwargs):
+        results = self.__call__(X=X, y=y, **kwargs)
         self.reset_identifier()
         return results
 
