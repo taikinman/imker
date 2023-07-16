@@ -265,6 +265,7 @@ class Task(object):
 
     def reset_identifier(self):
         self.__load_from = Path("")
+        self.task = self.config.task(**self.config.init_params)
 
     def __getstate__(self):
         raise pickle.PicklingError("Task object is not allowed to serialize.")
