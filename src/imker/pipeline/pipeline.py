@@ -187,7 +187,7 @@ class Pipeline(object):
         if self.splitter is not None:
             for i in range(self.splitter.get_n_splits()):
                 if self.oof_preprocessor is not None:
-                    X_oof, _ = self.oof_preprocessor[f"fold{i}"](X=X_, y=None)
+                    X_oof, _ = self.oof_preprocessor[f"fold{i}"](X=dc(X_), y=None)
                     oof_preds = self.model[f"fold{i}"](X_oof, proba=proba)
                 else:
                     oof_preds = self.model[f"fold{i}"](X_, proba=proba)
