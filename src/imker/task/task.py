@@ -263,10 +263,10 @@ class Task(object):
             else:
                 self.task = PickledBz2Cacher.load(self.__load_from.as_posix())
 
-            if proba:
-                return self.predict_proba(X)
-            else:
-                return self.predict(X)
+                if proba:
+                    return self.predict_proba(X)
+                else:
+                    return self.predict(X)
 
         elif hasfunc(self.task, "transform"):
             if self.__load_from.as_posix() == ".":
