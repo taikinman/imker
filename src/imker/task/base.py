@@ -15,6 +15,11 @@ class _Base(object):
             if isinstance(v, Task):
                 getattr(self, k).repo_dir = repo_dir
 
+    def set_verbose(self, verbose: bool):
+        for k, v in self.__dict__.items():
+            if isinstance(v, Task):
+                getattr(self, k).verbose = verbose
+
     def dump_params(self):
         for k, v in self.__dict__.items():
             if isinstance(v, Task):

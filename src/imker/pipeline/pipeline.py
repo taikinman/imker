@@ -24,10 +24,11 @@ class DefaultScorer(BaseScorer):
 
 
 class Pipeline(object):
-    def __init__(self, repo_dir: str, exp_name: str, pipeline_name: str):
+    def __init__(self, repo_dir: str, exp_name: str, pipeline_name: str, verbose: bool = True):
         self.repo_dir = Path(repo_dir)
         self.exp_name = Path(exp_name)
         self.pipeline_name = Path(pipeline_name)
+        self.verbose = verbose
 
         self.preprocessor = None
         self.splitter = None
@@ -39,10 +40,12 @@ class Pipeline(object):
     def set_preprocessor(self, preprocessor: BaseProcessor, *args, **kwargs):
         self.preprocessor = preprocessor(*args, **kwargs)
         self.preprocessor.set_repo_dir(self.repo_dir)
+        self.preprocessor.set_verbose(self.verbose)
 
     def set_splitter(self, splitter: BaseSplitter, *args, **kwargs):
         self.splitter = splitter(*args, **kwargs)
         self.splitter.set_repo_dir(self.repo_dir)
+        self.splitter.set_verbose(self.verbose)
 
     def set_oof_preprocessor(self, oof_preprocessor: BaseProcessor, *args, **kwargs):
         assert (
@@ -58,11 +61,13 @@ class Pipeline(object):
 
         for i in range(self.splitter.get_n_splits()):
             self.oof_preprocessor[f"fold{i}"].set_repo_dir(self.repo_dir)
+            self.oof_preprocessor[f"fold{i}"].set_verbose(self.verbose)
 
     def set_model(self, model: BaseModel, *args, **kwargs):
         if self.splitter is None:
             self.model = model(*args, **kwargs)
             self.model.set_repo_dir(self.repo_dir)
+            self.model.set_verbose(self.verbose)
         else:
             self.model = DataContainer(
                 {f"fold{i}": model(*args, **kwargs) for i in range(self.splitter.get_n_splits())}
@@ -70,6 +75,7 @@ class Pipeline(object):
 
             for i in range(self.splitter.get_n_splits()):
                 self.model[f"fold{i}"].set_repo_dir(self.repo_dir)
+                self.model[f"fold{i}"].set_verbose(self.verbose)
 
     def set_metrics(self, metrics: list, scorer: BaseScorer = None):
         metrics = metrics if isinstance(metrics, list) else [metrics]
@@ -82,6 +88,7 @@ class Pipeline(object):
     def set_postprocessor(self, postprocessor: BaseProcessor, *args, **kwargs):
         self.postprocessor = postprocessor(*args, **kwargs)
         self.postprocessor.set_repo_dir(self.repo_dir)
+        self.postprocessor.set_verbose(self.verbose)
 
     def test_preprocessing(self, X, y=None, **kwargs):
         return self.preprocessor.test(X=dc(X), y=dc(y), **dc(kwargs))
@@ -246,6 +253,7 @@ class Pipeline(object):
         repo_dir: str,
         exp_name: str,
         pipeline_name: str,
+        verbose: bool = True,
         preprocessor: BaseProcessor = None,
         oof_preprocessor: BaseProcessor = None,
         splitter: BaseSplitter = None,
@@ -263,7 +271,9 @@ class Pipeline(object):
 
         config_path = repo_dir / "pipeline" / exp_name / f"{pipeline_name.as_posix()}.yml"
 
-        pipe = cls(repo_dir=repo_dir, exp_name=exp_name, pipeline_name=pipeline_name)
+        pipe = cls(
+            repo_dir=repo_dir, exp_name=exp_name, pipeline_name=pipeline_name, verbose=verbose
+        )
 
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)

@@ -33,6 +33,7 @@ class Task(object):
         self.__format = self.__cache_processor.format()
         self.__cache = self.config.cache
         self.__load_from = Path(self.config.load_from)
+        self.__verbose = self.config.verbose
 
     def timer(func):
         @wraps(func)
@@ -41,10 +42,11 @@ class Task(object):
             result = func(self, *args, **kargs)
             elapsed_time = str(round(time.time() - start, 4))
 
-            task_name = self.cls_name.ljust(30, " ")
-            func_name = func.__name__.rjust(15, " ")
-            elapsed_time = elapsed_time.ljust(len(elapsed_time.split(".")[0]) + 5, "0")
-            print(f"{task_name} : {func_name} process takes {elapsed_time} [sec]")
+            if self.__verbose:
+                task_name = self.cls_name.ljust(30, " ")
+                func_name = func.__name__.rjust(15, " ")
+                elapsed_time = elapsed_time.ljust(len(elapsed_time.split(".")[0]) + 5, "0")
+                print(f"{task_name} : {func_name} process takes {elapsed_time} [sec]")
             return result
 
         return wrapper
@@ -347,3 +349,11 @@ class Task(object):
     @repo_dir.setter
     def repo_dir(self, repo_dir: str):
         self.__repo_dir = Path(repo_dir)
+
+    @property
+    def verbose(self):
+        return self.__verbose
+
+    @verbose.setter
+    def verbose(self, verbose: bool):
+        self.__verbose = verbose
