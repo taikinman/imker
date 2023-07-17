@@ -2,6 +2,8 @@ from .task import Task
 from ..inspection import parse_arguments
 from ..container.base import DataContainer
 from typing import Any, List
+import hashlib
+import pickle
 
 
 class _Base(object):
@@ -35,6 +37,9 @@ class _Base(object):
 class BaseTask(object):
     def fit(self, X: Any, y: Any = None):
         return self
+
+    def get_identifier(self, X):
+        return hashlib.sha256(pickle.dumps(X)).hexdigest()
 
 
 class BaseModel(_Base):
