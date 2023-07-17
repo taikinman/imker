@@ -86,9 +86,10 @@ class BaseProcessor(_Base):
     def __call__(self, X: Any, y: Any = None, **kwargs):
         return self.forward(X, y, **kwargs)
 
-    def test(self, X: Any, y: Any = None, **kwargs):
+    def test(self, X: Any, y: Any = None, reset_identifier=True, **kwargs):
         results = self.__call__(X=X, y=y, **kwargs)
-        self.reset_identifier()
+        if reset_identifier:
+            self.reset_identifier()
         return results
 
 

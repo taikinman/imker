@@ -101,7 +101,7 @@ class Pipeline(object):
                 self.splitter.test(*self.preprocessor.test(X=dc(X), y=dc(y), **dc(kwargs)))
             ):
                 oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"].test(
-                    oof.X_train, oof.y_train
+                    oof.X_train, oof.y_train, reset_identifier=False
                 )
                 oof.X_valid, oof.y_valid = self.oof_preprocessor[f"fold{i}"].test(
                     oof.X_valid, oof.y_valid
