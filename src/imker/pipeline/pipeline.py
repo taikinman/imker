@@ -36,6 +36,7 @@ class Pipeline(object):
         self.model = None
         self.postprocessor = None
         self.scorer = None
+        self.__TRAIN_STATUS = False
 
     def set_preprocessor(self, preprocessor: BaseProcessor, *args, **kwargs):
         self.preprocessor = preprocessor(*args, **kwargs)
@@ -119,6 +120,8 @@ class Pipeline(object):
             raise AssertionError("splitter is not defined")
 
     def train(self, X, y=None, **kwargs):
+        self.__TRAIN_STATUS = False
+
         self.preprocessor.reset_identifier()
 
         if self.splitter is not None:
@@ -146,10 +149,13 @@ class Pipeline(object):
             self.model(X_, y_)
 
         self.dump()
+        self.__TRAIN_STATUS = True
 
         return self
 
     def validate(self, X, y=None, proba=False, calc_metrics: bool = True, **kwargs):
+        assert self.__TRAIN_STATUS, "train must be run before validation"
+
         preds = DataContainer()
         self.__scores = DataContainer()
 
