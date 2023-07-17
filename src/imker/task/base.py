@@ -48,7 +48,7 @@ class BaseTask(object):
 
 
 class BaseModel(_Base):
-    def forward(self, X: Any, y: Any = None, proba: bool = False):
+    def forward(self, X: Any, y: Any = None, proba: bool = False, eval_set: List[tuple] = None):
         raise NotImplementedError
 
     def __call__(self, X: Any, y: Any = None, proba: bool = False, eval_set: List[tuple] = None):
