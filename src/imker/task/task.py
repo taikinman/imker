@@ -16,6 +16,8 @@ import pickle
 import copy
 from pathlib import Path
 import yaml
+from functools import wraps
+import time
 
 
 class Task(object):
@@ -32,6 +34,22 @@ class Task(object):
         self.__cache = self.config.cache
         self.__load_from = Path(self.config.load_from)
 
+    def timer(func):
+        @wraps(func)
+        def wrapper(self, *args, **kargs):
+            start = time.time()
+            result = func(self, *args, **kargs)
+            elapsed_time = str(round(time.time() - start, 4))
+
+            task_name = self.cls_name.ljust(30, " ")
+            func_name = func.__name__.rjust(15, " ")
+            elapsed_time = elapsed_time.ljust(len(elapsed_time.split(".")[0]) + 5, "0")
+            print(f"{task_name} : {func_name} process takes {elapsed_time} [sec]")
+            return result
+
+        return wrapper
+
+    @timer
     def fit(self, X, y=None, *args, **kwargs):
         base_save_dir = self.__repo_dir / "task/fit" / self.cls_name
 
@@ -72,6 +90,7 @@ class Task(object):
 
         return self
 
+    @timer
     def transform(self, X, y=None):
         base_save_dir = self.__repo_dir / "task/transform" / self.cls_name
         set_seed(self.config.seed)
@@ -115,6 +134,7 @@ class Task(object):
 
         return result
 
+    @timer
     def predict(self, X):
         base_save_dir = self.__repo_dir / "task/predict" / self.cls_name
         set_seed(self.config.seed)
@@ -147,6 +167,7 @@ class Task(object):
 
         return result
 
+    @timer
     def predict_proba(self, X):
         base_save_dir = self.__repo_dir / "task/predict_proba" / self.cls_name
         set_seed(self.config.seed)
@@ -192,6 +213,7 @@ class Task(object):
     def get_n_splits(self):
         return self.task.get_n_splits()
 
+    @timer
     def split(self, X, y=None, *args, **kwargs):
         set_seed(self.config.seed)
         base_save_dir = self.__repo_dir / "task/split" / self.cls_name
