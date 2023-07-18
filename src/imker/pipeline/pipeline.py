@@ -295,7 +295,6 @@ class Pipeline(object):
 
             for attr, id_ in config["preprocessor"].items():
                 pipe.preprocessor.set_identifier(attr, id_)
-            pipe.preprocessor.set_repo_dir(repo_dir)
 
         if "splitter" in config:
             assert (
@@ -307,7 +306,6 @@ class Pipeline(object):
 
             for attr, id_ in config["splitter"].items():
                 pipe.splitter.set_identifier(attr, id_)
-            pipe.splitter.set_repo_dir(repo_dir)
 
         if "oof_preprocessor" in config:
             assert (
@@ -320,7 +318,6 @@ class Pipeline(object):
 
                 for attr, id_ in c.items():
                     pipe.oof_preprocessor[fold].set_identifier(attr, id_)
-                pipe.oof_preprocessor[fold].set_repo_dir(repo_dir)
 
         if "model" in config:
             assert model is not None, "pipeline needs model but you don't pass model argument"
@@ -332,12 +329,10 @@ class Pipeline(object):
 
                     for attr, id_ in c.items():
                         pipe.model[fold].set_identifier(attr, id_)
-                    pipe.model[fold].set_repo_dir(repo_dir)
             else:
                 _check_load_attrs(pipe.model, config["model"], "model")
                 for attr, id_ in config["model"].items():
                     pipe.model.set_identifier(attr, id_)
-                pipe.model.set_repo_dir(repo_dir)
 
         if "postprocessor" in config:
             assert (
@@ -348,7 +343,6 @@ class Pipeline(object):
             _check_load_attrs(pipe.postprocessor, config["postprocessor"], "postprocessor")
             for attr, id_ in config["postprocessor"].items():
                 pipe.postprocessor.set_identifier(attr, id_)
-            pipe.postprocessor.set_repo_dir(repo_dir)
 
         return pipe
 
