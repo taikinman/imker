@@ -16,6 +16,8 @@ import pickle
 import copy
 from pathlib import Path
 import yaml
+from functools import wraps
+import time
 
 
 class Task(object):
@@ -31,7 +33,25 @@ class Task(object):
         self.__format = self.__cache_processor.format()
         self.__cache = self.config.cache
         self.__load_from = Path(self.config.load_from)
+        self.__verbose = self.config.verbose
 
+    def timer(func):
+        @wraps(func)
+        def wrapper(self, *args, **kargs):
+            start = time.time()
+            result = func(self, *args, **kargs)
+            elapsed_time = str(round(time.time() - start, 4))
+
+            if self.__verbose:
+                task_name = self.cls_name.ljust(30, " ")
+                func_name = func.__name__.rjust(15, " ")
+                elapsed_time = elapsed_time.ljust(len(elapsed_time.split(".")[0]) + 5, "0")
+                print(f"{task_name} : {func_name} process takes {elapsed_time} [sec]")
+            return result
+
+        return wrapper
+
+    @timer
     def fit(self, X, y=None, *args, **kwargs):
         base_save_dir = self.__repo_dir / "task/fit" / self.cls_name
 
@@ -72,6 +92,7 @@ class Task(object):
 
         return self
 
+    @timer
     def transform(self, X, y=None):
         base_save_dir = self.__repo_dir / "task/transform" / self.cls_name
         set_seed(self.config.seed)
@@ -115,6 +136,7 @@ class Task(object):
 
         return result
 
+    @timer
     def predict(self, X):
         base_save_dir = self.__repo_dir / "task/predict" / self.cls_name
         set_seed(self.config.seed)
@@ -147,6 +169,7 @@ class Task(object):
 
         return result
 
+    @timer
     def predict_proba(self, X):
         base_save_dir = self.__repo_dir / "task/predict_proba" / self.cls_name
         set_seed(self.config.seed)
@@ -192,6 +215,7 @@ class Task(object):
     def get_n_splits(self):
         return self.task.get_n_splits()
 
+    @timer
     def split(self, X, y=None, *args, **kwargs):
         set_seed(self.config.seed)
         base_save_dir = self.__repo_dir / "task/split" / self.cls_name
@@ -239,10 +263,10 @@ class Task(object):
             else:
                 self.task = PickledBz2Cacher.load(self.__load_from.as_posix())
 
-            if proba:
-                return self.predict_proba(X)
-            else:
-                return self.predict(X)
+                if proba:
+                    return self.predict_proba(X)
+                else:
+                    return self.predict(X)
 
         elif hasfunc(self.task, "transform"):
             if self.__load_from.as_posix() == ".":
@@ -265,6 +289,7 @@ class Task(object):
 
     def reset_identifier(self):
         self.__load_from = Path("")
+        self.task = self.config.task(**self.config.init_params)
 
     def __getstate__(self):
         raise pickle.PicklingError("Task object is not allowed to serialize.")
@@ -324,3 +349,11 @@ class Task(object):
     @repo_dir.setter
     def repo_dir(self, repo_dir: str):
         self.__repo_dir = Path(repo_dir)
+
+    @property
+    def verbose(self):
+        return self.__verbose
+
+    @verbose.setter
+    def verbose(self, verbose: bool):
+        self.__verbose = verbose

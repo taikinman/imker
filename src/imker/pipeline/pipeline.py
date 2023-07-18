@@ -24,10 +24,11 @@ class DefaultScorer(BaseScorer):
 
 
 class Pipeline(object):
-    def __init__(self, repo_dir: str, exp_name: str, pipeline_name: str):
+    def __init__(self, repo_dir: str, exp_name: str, pipeline_name: str, verbose: bool = True):
         self.repo_dir = Path(repo_dir)
         self.exp_name = Path(exp_name)
         self.pipeline_name = Path(pipeline_name)
+        self.verbose = verbose
 
         self.preprocessor = None
         self.splitter = None
@@ -35,14 +36,17 @@ class Pipeline(object):
         self.model = None
         self.postprocessor = None
         self.scorer = None
+        self.__TRAIN_STATUS = False
 
     def set_preprocessor(self, preprocessor: BaseProcessor, *args, **kwargs):
         self.preprocessor = preprocessor(*args, **kwargs)
         self.preprocessor.set_repo_dir(self.repo_dir)
+        self.preprocessor.set_verbose(self.verbose)
 
     def set_splitter(self, splitter: BaseSplitter, *args, **kwargs):
         self.splitter = splitter(*args, **kwargs)
         self.splitter.set_repo_dir(self.repo_dir)
+        self.splitter.set_verbose(self.verbose)
 
     def set_oof_preprocessor(self, oof_preprocessor: BaseProcessor, *args, **kwargs):
         assert (
@@ -58,11 +62,13 @@ class Pipeline(object):
 
         for i in range(self.splitter.get_n_splits()):
             self.oof_preprocessor[f"fold{i}"].set_repo_dir(self.repo_dir)
+            self.oof_preprocessor[f"fold{i}"].set_verbose(self.verbose)
 
     def set_model(self, model: BaseModel, *args, **kwargs):
         if self.splitter is None:
             self.model = model(*args, **kwargs)
             self.model.set_repo_dir(self.repo_dir)
+            self.model.set_verbose(self.verbose)
         else:
             self.model = DataContainer(
                 {f"fold{i}": model(*args, **kwargs) for i in range(self.splitter.get_n_splits())}
@@ -70,6 +76,7 @@ class Pipeline(object):
 
             for i in range(self.splitter.get_n_splits()):
                 self.model[f"fold{i}"].set_repo_dir(self.repo_dir)
+                self.model[f"fold{i}"].set_verbose(self.verbose)
 
     def set_metrics(self, metrics: list, scorer: BaseScorer = None):
         metrics = metrics if isinstance(metrics, list) else [metrics]
@@ -82,6 +89,7 @@ class Pipeline(object):
     def set_postprocessor(self, postprocessor: BaseProcessor, *args, **kwargs):
         self.postprocessor = postprocessor(*args, **kwargs)
         self.postprocessor.set_repo_dir(self.repo_dir)
+        self.postprocessor.set_verbose(self.verbose)
 
     def test_preprocessing(self, X, y=None, **kwargs):
         return self.preprocessor.test(X=dc(X), y=dc(y), **dc(kwargs))
@@ -101,7 +109,7 @@ class Pipeline(object):
                 self.splitter.test(*self.preprocessor.test(X=dc(X), y=dc(y), **dc(kwargs)))
             ):
                 oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"].test(
-                    oof.X_train, oof.y_train
+                    oof.X_train, oof.y_train, reset_identifier=False
                 )
                 oof.X_valid, oof.y_valid = self.oof_preprocessor[f"fold{i}"].test(
                     oof.X_valid, oof.y_valid
@@ -112,6 +120,8 @@ class Pipeline(object):
             raise AssertionError("splitter is not defined")
 
     def train(self, X, y=None, **kwargs):
+        self.__TRAIN_STATUS = False
+
         self.preprocessor.reset_identifier()
 
         if self.splitter is not None:
@@ -139,10 +149,13 @@ class Pipeline(object):
             self.model(X_, y_)
 
         self.dump()
+        self.__TRAIN_STATUS = True
 
         return self
 
     def validate(self, X, y=None, proba=False, calc_metrics: bool = True, **kwargs):
+        assert self.__TRAIN_STATUS, "train must be run before validation"
+
         preds = DataContainer()
         self.__scores = DataContainer()
 
@@ -187,7 +200,7 @@ class Pipeline(object):
         if self.splitter is not None:
             for i in range(self.splitter.get_n_splits()):
                 if self.oof_preprocessor is not None:
-                    X_oof, _ = self.oof_preprocessor[f"fold{i}"](X=X_, y=None)
+                    X_oof, _ = self.oof_preprocessor[f"fold{i}"](X=dc(X_), y=None)
                     oof_preds = self.model[f"fold{i}"](X_oof, proba=proba)
                 else:
                     oof_preds = self.model[f"fold{i}"](X_, proba=proba)
@@ -246,6 +259,7 @@ class Pipeline(object):
         repo_dir: str,
         exp_name: str,
         pipeline_name: str,
+        verbose: bool = True,
         preprocessor: BaseProcessor = None,
         oof_preprocessor: BaseProcessor = None,
         splitter: BaseSplitter = None,
@@ -263,7 +277,9 @@ class Pipeline(object):
 
         config_path = repo_dir / "pipeline" / exp_name / f"{pipeline_name.as_posix()}.yml"
 
-        pipe = cls(repo_dir=repo_dir, exp_name=exp_name, pipeline_name=pipeline_name)
+        pipe = cls(
+            repo_dir=repo_dir, exp_name=exp_name, pipeline_name=pipeline_name, verbose=verbose
+        )
 
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)
@@ -279,7 +295,6 @@ class Pipeline(object):
 
             for attr, id_ in config["preprocessor"].items():
                 pipe.preprocessor.set_identifier(attr, id_)
-            pipe.preprocessor.set_repo_dir(repo_dir)
 
         if "splitter" in config:
             assert (
@@ -291,7 +306,6 @@ class Pipeline(object):
 
             for attr, id_ in config["splitter"].items():
                 pipe.splitter.set_identifier(attr, id_)
-            pipe.splitter.set_repo_dir(repo_dir)
 
         if "oof_preprocessor" in config:
             assert (
@@ -304,7 +318,6 @@ class Pipeline(object):
 
                 for attr, id_ in c.items():
                     pipe.oof_preprocessor[fold].set_identifier(attr, id_)
-                pipe.oof_preprocessor[fold].set_repo_dir(repo_dir)
 
         if "model" in config:
             assert model is not None, "pipeline needs model but you don't pass model argument"
@@ -316,12 +329,10 @@ class Pipeline(object):
 
                     for attr, id_ in c.items():
                         pipe.model[fold].set_identifier(attr, id_)
-                    pipe.model[fold].set_repo_dir(repo_dir)
             else:
                 _check_load_attrs(pipe.model, config["model"], "model")
                 for attr, id_ in config["model"].items():
                     pipe.model.set_identifier(attr, id_)
-                pipe.model.set_repo_dir(repo_dir)
 
         if "postprocessor" in config:
             assert (
@@ -332,7 +343,6 @@ class Pipeline(object):
             _check_load_attrs(pipe.postprocessor, config["postprocessor"], "postprocessor")
             for attr, id_ in config["postprocessor"].items():
                 pipe.postprocessor.set_identifier(attr, id_)
-            pipe.postprocessor.set_repo_dir(repo_dir)
 
         return pipe
 

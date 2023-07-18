@@ -19,36 +19,37 @@ yaml.add_representer(DataContainer, represent_odict)
 @dataclass
 class TaskConfig:
     """
-    Dataclass contains task, parameters of the task, parameters related to how cache perform, 
+    Dataclass contains task, parameters of the task, parameters related to how cache perform,
     and parameter for reproducibility.
 
     Parameters:
         task : Any
-            Task that run a specific process inheriting BaseTask class or 
+            Task that run a specific process inheriting BaseTask class or
             scikit-learn object.
-        init_params : dict, optional 
+        init_params : dict, optional
             Arguments of task's constructor.
-        fit_params : dict, optional 
+        fit_params : dict, optional
             Parameters required by fit() of the task.
-        transform_params : dict, optional 
+        transform_params : dict, optional
             Parameters required by transform() of the task.
-        predict_params : dict, optional 
+        predict_params : dict, optional
             Parameters required by predict() or predict_proba() of the task.
         repo_dir : Union[str, Path], default='.imker'
-            Path to repository storing cache files. This value is overwritten by 
-            pipeline's constructor arguments if you run the task in pipeline. 
+            Path to repository storing cache files. This value is overwritten by
+            pipeline's constructor arguments if you run the task in pipeline.
         cache_processor : BaseCacher, default=imker.store.cacher.PickledBz2Cacher.
             Serialization or file processor to cache the output of the task.
         cache : bool, default=False.
             If true, the outputs of transform(), predict() or predict_proba() are cached.
         cache_strict : bool, defaulf=True.
-            If True, source code of the task is used for generating hash. 
+            If True, source code of the task is used for generating hash.
         load_from : str, optional
-            Path to cached the task. If this arguments is specified, the task load cached instance 
+            Path to cached the task. If this arguments is specified, the task load cached instance
             instead of running fit().
         seed : int, default=42.
             Seed for reproducibility.
     """
+
     task: Any
     init_params: dict = field(default_factory=dict)
     fit_params: dict = field(default_factory=dict)
@@ -60,6 +61,7 @@ class TaskConfig:
     cache_strict: bool = True
     load_from: str = ""
     seed: int = 42
+    verbose: bool = True
 
     def asdict(self):
         result = OrderedDict(asdict(self))

@@ -2,6 +2,8 @@ from .task import Task
 from ..inspection import parse_arguments
 from ..container.base import DataContainer
 from typing import Any, List
+import hashlib
+import pickle
 
 
 class _Base(object):
@@ -12,6 +14,11 @@ class _Base(object):
         for k, v in self.__dict__.items():
             if isinstance(v, Task):
                 getattr(self, k).repo_dir = repo_dir
+
+    def set_verbose(self, verbose: bool):
+        for k, v in self.__dict__.items():
+            if isinstance(v, Task):
+                getattr(self, k).verbose = verbose
 
     def dump_params(self):
         for k, v in self.__dict__.items():
@@ -36,9 +43,12 @@ class BaseTask(object):
     def fit(self, X: Any, y: Any = None):
         return self
 
+    def get_identifier(self, X):
+        return hashlib.sha256(pickle.dumps(X)).hexdigest()
+
 
 class BaseModel(_Base):
-    def forward(self, X: Any, y: Any = None, proba: bool = False):
+    def forward(self, X: Any, y: Any = None, proba: bool = False, eval_set: List[tuple] = None):
         raise NotImplementedError
 
     def __call__(self, X: Any, y: Any = None, proba: bool = False, eval_set: List[tuple] = None):
@@ -81,9 +91,10 @@ class BaseProcessor(_Base):
     def __call__(self, X: Any, y: Any = None, **kwargs):
         return self.forward(X, y, **kwargs)
 
-    def test(self, X: Any, y: Any = None, **kwargs):
+    def test(self, X: Any, y: Any = None, reset_identifier=True, **kwargs):
         results = self.__call__(X=X, y=y, **kwargs)
-        self.reset_identifier()
+        if reset_identifier:
+            self.reset_identifier()
         return results
 
 
