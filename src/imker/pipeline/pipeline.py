@@ -148,8 +148,8 @@ class Pipeline(object):
             self.model.reset_identifier()
             self.model(X_, y_)
 
-        self.dump()
         self.__TRAIN_STATUS = True
+        self.dump()
 
         return self
 
@@ -164,9 +164,6 @@ class Pipeline(object):
                 self.splitter(*self.preprocessor(X=dc(X), y=dc(y), **dc(kwargs)))
             ):
                 if self.oof_preprocessor is not None:
-                    oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"](
-                        oof.X_train, oof.y_train
-                    )
                     oof.X_valid, oof.y_valid = self.oof_preprocessor[f"fold{i}"](
                         oof.X_valid, oof.y_valid
                     )
@@ -195,6 +192,8 @@ class Pipeline(object):
             raise AssertionError("splitter is not configured.")
 
     def inference(self, X_test, proba=False, **kwargs):
+        assert self.__TRAIN_STATUS, "train must be run before inference"
+
         preds = DataContainer()
         X_, _ = self.preprocessor(X=dc(X_test), y=None, **dc(kwargs))
         if self.splitter is not None:
@@ -344,6 +343,7 @@ class Pipeline(object):
             for attr, id_ in config["postprocessor"].items():
                 pipe.postprocessor.set_identifier(attr, id_)
 
+        pipe.train_status = config["train_status"]
         return pipe
 
     def dump(self):
@@ -375,6 +375,8 @@ class Pipeline(object):
         if self.postprocessor is not None:
             output["postprocessor"] = self.postprocessor.identifier
 
+        output["train_status"] = self.__TRAIN_STATUS
+
         save_dir.mkdir(parents=True, exist_ok=True)
 
         with open(save_dir / f"{self.pipeline_name.as_posix()}.yml", "w") as f:
@@ -382,3 +384,11 @@ class Pipeline(object):
 
     def __getstate__(self):
         raise pickle.PicklingError("Pipeline object is not allowed to serialize")
+
+    @property
+    def train_status(self):
+        return self.__TRAIN_STATUS
+
+    @train_status.setter
+    def train_status(self, x):
+        self.__TRAIN_STATUS = x

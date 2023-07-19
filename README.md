@@ -78,16 +78,7 @@ Task(TaskConfig(task=...,
                 ))
 ```
 
-By default, a hash is generated from the source code, input data, and the state of the task. If you don't want to include the source code of the task when generating the hash for various reasons, you can pass False to the cache_strict argument.
-
-```python
-Task(TaskConfig(task=..., 
-                cache=True, 
-                cache_strict=False
-                ))
-```
-
-A cached file is a compressed file of a pickled object, and the default format is pbz2. If you want to change the format, you can pass another processor as an argument to the cache_processor of the TaskConfig. You can also specify your custom cache processor.
+By default, a hash is generated from the source code, input data, and the parameters of the task. A cached file is a compressed file of a pickled object, and the default format is pbz2. If you want to change the format, you can pass another processor as an argument to the cache_processor of the TaskConfig. You can also specify your custom cache processor.
 
 </details>
 
