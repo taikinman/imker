@@ -164,9 +164,6 @@ class Pipeline(object):
                 self.splitter(*self.preprocessor(X=dc(X), y=dc(y), **dc(kwargs)))
             ):
                 if self.oof_preprocessor is not None:
-                    oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"](
-                        oof.X_train, oof.y_train
-                    )
                     oof.X_valid, oof.y_valid = self.oof_preprocessor[f"fold{i}"](
                         oof.X_valid, oof.y_valid
                     )
