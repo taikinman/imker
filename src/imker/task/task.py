@@ -194,10 +194,10 @@ class Task(object):
         return self.task.get_n_splits()
 
     @timer
-    def split(self, X, y=None, *args, **kwargs):
+    def split(self, X, y=None, stratify=None, groups=None):
         set_seed(self.config.seed)
         base_save_dir = self.__repo_dir / "task/split" / self.cls_name
-        split_id_ = self.get_identifier(X, y, *args, **kwargs)
+        split_id_ = self.get_identifier(X, y, stratify, groups)
         save_to = base_save_dir / split_id_ / f"task.{self.__format}"
 
         if ~save_to.exists():
@@ -209,7 +209,12 @@ class Task(object):
 
         self.__load_from = save_to
 
-        for idx_tr, idx_val in self.task.split(X, y, *args, **kwargs):
+        if stratify is None:
+            folds = self.task.split(X, y, groups=groups)
+        else:
+            folds = self.task.split(X, stratify, groups=groups)
+
+        for idx_tr, idx_val in folds:
             outputs = DataContainer()
             outputs.X_train, outputs.y_train = self._split_dataset(X, y, idx_tr)
             outputs.X_valid, outputs.y_valid = self._split_dataset(X, y, idx_val)
