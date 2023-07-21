@@ -59,30 +59,27 @@ class Task(object):
         fit_args = parse_arguments(self.task.fit)
 
         if "X" in fit_args and "y" in fit_args:
-            fit_id_ = self.get_identifier(X, y, *args, **kwargs, **self.config.fit_params)
+            fit_id_before = self.get_identifier(X, y, *args, **kwargs, **self.config.fit_params)
         else:
-            fit_id_ = self.get_identifier(X, *args, **kwargs, **self.config.fit_params)
+            fit_id_before = self.get_identifier(X, *args, **kwargs, **self.config.fit_params)
 
-        save_to = base_save_dir / fit_id_ / f"task.{self.__format}"
+        save_to_before = base_save_dir / fit_id_before / f"task.{self.__format}"
 
-        if save_to.exists():
-            self.task = PickledBz2Cacher.load(save_to.as_posix())
+        if save_to_before.exists():
+            print(f"{self.cls_name} : load task...")
+            self.task = PickledBz2Cacher.load(save_to_before.as_posix())
         else:
             if "X" in fit_args and "y" in fit_args:
                 self.task.fit(X, y, *args, **kwargs, **self.config.fit_params)
-                fit_id_ = self.get_identifier(X, y, *args, **kwargs, **self.config.fit_params)
             else:
                 self.task.fit(X, *args, **kwargs, **self.config.fit_params)
-                fit_id_ = self.get_identifier(X, *args, **kwargs, **self.config.fit_params)
 
-            save_to = base_save_dir / fit_id_ / f"task.{PickledBz2Cacher.format()}"
+            save_to_before.parent.mkdir(parents=True, exist_ok=True)
+            PickledBz2Cacher.save(save_to_before.as_posix(), self.task)
 
-            save_to.parent.mkdir(parents=True, exist_ok=True)
-            PickledBz2Cacher.save(save_to.as_posix(), self.task)
+            self.dump_config(save_to_before.parent, "fit")
 
-            self.dump_config(save_to.parent, "fit")
-
-        self.__load_from = save_to
+        self.__load_from = save_to_before
 
         return self
 
@@ -186,7 +183,7 @@ class Task(object):
 
     def get_identifier(self, *args, **kwargs):
         argument_hash = Path(get_identifier(*args, **kwargs))
-        state_hash = Path(get_identifier(src=get_code(self.config.task)))
+        state_hash = Path(get_identifier(src=get_code(self.config.task), state=self.task.__dict__))
         save_to = argument_hash / state_hash
         return save_to
 
