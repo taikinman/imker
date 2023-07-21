@@ -221,14 +221,14 @@ class Task(object):
 
     def _split_dataset(self, X, y, idx):
         if isinstance(X, pd.DataFrame) or isinstance(X, pd.Series):
-            X_ = X.iloc[idx]
+            X_ = X.loc[idx]
         elif isinstance(X, list):
             X_ = [X[i] for i in idx]
         else:
             X_ = X[idx]
 
         if isinstance(y, pd.DataFrame) or isinstance(y, pd.Series):
-            y_ = y.iloc[idx]
+            y_ = y.loc[idx]
         elif isinstance(y, list):
             y_ = [y[i] for i in idx]
         else:
