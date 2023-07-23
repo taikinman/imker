@@ -40,7 +40,7 @@ class _Base(object):
 
 class BaseProcessor(_Base):
     def forward(self, X: Any, y: Any = None, **kwargs):
-        raise NotImplementedError
+        return X, y
 
     def __call__(self, X: Any, y: Any = None, **kwargs):
         return self.forward(X, y, **kwargs)
@@ -75,7 +75,7 @@ class BaseModel(_Base):
 
 class BaseSplitter(_Base):
     def get_n_splits(self):
-        raise NotImplementedError
+        return self.n_splits
 
     def split(self, X: Any, y: Any = None, *args, **kwargs) -> Any:
         raise NotImplementedError
