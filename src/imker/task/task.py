@@ -1,23 +1,24 @@
-from ..inspection import (
-    parse_arguments,
-    get_identifier,
-    is_dictlike,
-    is_func_or_class,
-    hasfunc,
-    get_code,
-)
-from .config import TaskConfig
-from ..utils import set_seed
-from ..store.cacher import PickledBz2Cacher
-from ..container.base import DataContainer
+import copy
+import pickle
+import time
+from functools import wraps
+from pathlib import Path
 
 import pandas as pd
-import pickle
-import copy
-from pathlib import Path
 import yaml
-from functools import wraps
-import time
+
+from ..container.base import DataContainer
+from ..inspection import (
+    get_code,
+    get_identifier,
+    hasfunc,
+    is_dictlike,
+    is_func_or_class,
+    parse_arguments,
+)
+from ..store.cacher import PickledBz2Cacher
+from ..utils import set_seed
+from .config import TaskConfig
 
 
 class Task(object):

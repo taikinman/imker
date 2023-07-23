@@ -1,8 +1,9 @@
 import bz2
 import pickle
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
 
 
 class BaseCacher:

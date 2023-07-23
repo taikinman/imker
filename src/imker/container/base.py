@@ -1,6 +1,6 @@
+from collections import OrderedDict
 from keyword import iskeyword
 from typing import Any
-from collections import OrderedDict
 
 
 class DataContainer(OrderedDict):
