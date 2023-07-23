@@ -123,6 +123,9 @@ class Pipeline(object):
     def train(self, X, y=None, **kwargs):
         self.__TRAIN_STATUS = False
 
+        if self.preprocessor is None:
+            self.preprocessor = BaseProcessor()
+
         self.preprocessor.reset_identifier()
 
         if self.splitter is not None:
