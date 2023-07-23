@@ -59,27 +59,27 @@ class Task(object):
         fit_args = parse_arguments(self.task.fit)
 
         if "X" in fit_args and "y" in fit_args:
-            fit_id_before = self.get_identifier(X, y, *args, **kwargs, **self.config.fit_params)
+            fit_id_ = self.get_identifier(X, y, *args, **kwargs, **self.config.fit_params)
         else:
-            fit_id_before = self.get_identifier(X, *args, **kwargs, **self.config.fit_params)
+            fit_id_ = self.get_identifier(X, *args, **kwargs, **self.config.fit_params)
 
-        save_to_before = base_save_dir / fit_id_before / f"task.{self.__format}"
+        save_to = base_save_dir / fit_id_ / f"task.{self.__format}"
 
-        if save_to_before.exists():
+        if save_to.exists():
             print(f"{self.cls_name} : load task...")
-            self.task = PickledBz2Cacher.load(save_to_before.as_posix())
+            self.task = PickledBz2Cacher.load(save_to.as_posix())
         else:
             if "X" in fit_args and "y" in fit_args:
                 self.task.fit(X, y, *args, **kwargs, **self.config.fit_params)
             else:
                 self.task.fit(X, *args, **kwargs, **self.config.fit_params)
 
-            save_to_before.parent.mkdir(parents=True, exist_ok=True)
-            PickledBz2Cacher.save(save_to_before.as_posix(), self.task)
+            save_to.parent.mkdir(parents=True, exist_ok=True)
+            PickledBz2Cacher.save(save_to.as_posix(), self.task)
 
-            self.dump_config(save_to_before.parent, "fit")
+            self.dump_config(save_to.parent, "fit")
 
-        self.__load_from = save_to_before
+        self.__load_from = save_to
 
         return self
 
@@ -103,10 +103,8 @@ class Task(object):
             else:
                 if "X" in args and "y" in args:
                     result = self.task.transform(X, y, **self.config.transform_params)
-                    transform_id_ = self.get_identifier(X, y, **self.config.transform_params)
                 else:
                     result = self.task.transform(X, **self.config.transform_params)
-                    transform_id_ = self.get_identifier(X, **self.config.transform_params)
 
                 save_to = base_save_dir / transform_id_ / f"task.{self.__format}"
 
@@ -138,8 +136,6 @@ class Task(object):
             else:
                 result = self.task.predict(X, **self.config.predict_params)
 
-                predict_id_ = self.get_identifier(X, proba=False, **self.config.predict_params)
-
                 save_to = base_save_dir / predict_id_ / f"task.{self.__format}"
 
                 if ~save_to.exists():
@@ -166,8 +162,6 @@ class Task(object):
                 result = self.__cache_processor.load(save_to.as_posix())
             else:
                 result = self.task.predict_proba(X, **self.config.predict_params)
-
-                predict_id_ = self.get_identifier(X, proba=True, **self.config.predict_params)
 
                 save_to = base_save_dir / predict_id_ / f"task.{self.__format}"
 
