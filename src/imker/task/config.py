@@ -1,8 +1,9 @@
-from dataclasses import dataclass, field, asdict
-from typing import Any
-from pathlib import Path
-import yaml
 from collections import OrderedDict
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
 
 from ..container.base import DataContainer
 from ..store.cacher import BaseCacher, PickledBz2Cacher
@@ -41,13 +42,13 @@ class TaskConfig:
             Serialization or file processor to cache the output of the task.
         cache : bool, default=False.
             If true, the outputs of transform(), predict() or predict_proba() are cached.
-        cache_strict : bool, defaulf=True.
-            If True, source code of the task is used for generating hash.
         load_from : str, optional
             Path to cached the task. If this arguments is specified, the task load cached instance
             instead of running fit().
         seed : int, default=42.
             Seed for reproducibility.
+        verbose : bool, default=True.
+            Whether output the processing time of the each tasks.
     """
 
     task: Any

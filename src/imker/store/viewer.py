@@ -1,9 +1,11 @@
+import datetime
 import os
 from pathlib import Path
-import datetime
+from typing import Union
+
 import pandas as pd
 import yaml
-from typing import Union
+
 from .cacher import PickledBz2Cacher
 
 

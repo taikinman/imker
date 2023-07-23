@@ -1,13 +1,14 @@
-import numpy as np
-from collections import defaultdict
-import pandas as pd
 import pickle
-from pathlib import Path
-import yaml
+from collections import defaultdict
 from copy import deepcopy as dc
+from pathlib import Path
 
+import numpy as np
+import pandas as pd
+import yaml
+
+from ..component.base import BaseModel, BaseProcessor, BaseScorer, BaseSplitter
 from ..container.base import DataContainer
-from ..task.base import BaseProcessor, BaseSplitter, BaseModel, BaseScorer
 from ..task.task import Task
 
 
@@ -169,9 +170,7 @@ class Pipeline(object):
                     )
 
                 val_preds = self.model[f"fold{i}"](oof.X_valid, proba=proba)
-
-                if isinstance(val_preds, dict):
-                    val_preds = DataContainer(val_preds)
+                val_preds = DataContainer(val_preds)
 
                 if self.postprocessor is not None:
                     val_preds = self.postprocessor(oof.X_valid, val_preds)
@@ -203,8 +202,6 @@ class Pipeline(object):
                     oof_preds = self.model[f"fold{i}"](X_oof, proba=proba)
                 else:
                     oof_preds = self.model[f"fold{i}"](X_, proba=proba)
-
-                if isinstance(oof_preds, dict):
                     oof_preds = DataContainer(oof_preds)
 
                 if self.postprocessor is not None:
