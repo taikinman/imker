@@ -1,11 +1,12 @@
 from typing import Any, List
+from abc import ABC, abstractmethod
 
 from ..container.base import DataContainer
 from ..inspection import parse_arguments
 from ..task.task import Task
 
 
-class _Base(object):
+class _Base(ABC):
     def set_identifier(self, attr, identifier: str):
         getattr(self, attr).identifier = identifier
 
@@ -53,6 +54,7 @@ class BaseProcessor(_Base):
 
 
 class BaseModel(_Base):
+    @abstractmethod
     def forward(self, X: Any, y: Any = None, proba: bool = False, eval_set: List[tuple] = None):
         raise NotImplementedError
 
@@ -74,11 +76,13 @@ class BaseModel(_Base):
 
 
 class BaseSplitter(_Base):
+    @abstractmethod
     def get_n_splits(self):
-        return self.n_splits
+        pass
 
+    @abstractmethod
     def split(self, X: Any, y: Any = None, *args, **kwargs) -> Any:
-        raise NotImplementedError
+        pass
 
     def __call__(self, X: Any, y: Any = None, *args, **kwargs):
         return self.split(X, y, *args, **kwargs)
@@ -89,12 +93,13 @@ class BaseSplitter(_Base):
         return results
 
 
-class BaseScorer(object):
+class BaseScorer(ABC):
     def __init__(self, metrics: list):
         self.metrics = metrics if isinstance(metrics, list) else [metrics]
 
+    @abstractmethod
     def calc_metrics(self, y_true: Any, y_pred: Any):
-        raise NotImplementedError
+        pass
 
     def __call__(self, y_true: Any, y_pred: Any):
         return self.calc_metrics(y_true, y_pred)
