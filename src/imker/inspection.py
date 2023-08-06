@@ -25,7 +25,11 @@ def hasfunc(obj: Any, attr: str) -> bool:
 
 
 def is_dictlike(obj: Any) -> bool:
-    return isinstance(obj, dict) or isinstance(obj, DataContainer) or isinstance(obj, OrderedDict)
+    return (
+        isinstance(obj, dict)
+        or isinstance(obj, DataContainer)
+        or isinstance(obj, OrderedDict)
+    )
 
 
 def is_func_or_class(obj: Any) -> bool:
@@ -48,13 +52,47 @@ def get_class_code(cls: type) -> str:
     return doc
 
 
-def get_code(obj: Any) -> str:
+def remove_comment_and_docstring_field_from_code(code: str) -> str:
+    pattern_docstring = re.compile("(\"|'){3}((.|\n)*?)(\"|'){3}")
+    pattern_hash_in_literal = re.compile("(\"|')+(#)+(\\s)*.+(\"|')+(\n)(!?.)")
+    pattern_hash = re.compile("(\"|')*(#)+(\\s)*.+(\"|')*(\n)(!?.)")
+
+    pattern_blankline = re.compile("(\\s)+(\n)+")
+    pattern_function = re.compile("((\\s)+(@.+)\n)*(\\s)+def ")
+    code = pattern_docstring.sub("", code)
+
+    groups = []
+    for match in pattern_hash.finditer(code):
+        group = match.group()
+        if not pattern_hash_in_literal.match(group):
+            st, en = match.span()
+            groups.append((st, en - 1))
+
+    for st, en in groups[::-1]:
+        code = code[:st] + "\n" + code[en:]
+
+    code = pattern_blankline.sub("\n", code)
+
+    insert_positions = []
+    for match in pattern_function.finditer(code):
+        insert_positions.append(match.span())
+
+    for st, _ in insert_positions[::-1]:
+        code = code[:st] + "\n" + code[st:]
+
+    return code
+
+
+def get_code(obj: Any, remove_doc_comment: bool = True) -> str:
     if isclass(obj):
         code = get_class_code(obj)
     elif isfunction(obj):
         code = get_func_code(obj)
     else:
         raise
+
+    if remove_doc_comment:
+        code = remove_comment_and_docstring_field_from_code(code)
 
     return code
 
