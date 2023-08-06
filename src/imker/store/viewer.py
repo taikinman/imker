@@ -16,10 +16,10 @@ class RepositoryViewer:
     ):
         self.repo_dir = Path(repo_dir) / "task"
 
-    def search_repo(self):
+    def search_repo(self) -> pd.DataFrame:
         savedir = Path(self.repo_dir)
 
-        cachefiles = sorted([p for p in savedir.glob(f"**/*") if os.path.isfile(p.as_posix())])
+        cachefiles = sorted([p for p in savedir.glob("**/*") if os.path.isfile(p.as_posix())])
 
         task_cache = [p for p in cachefiles if p.suffix != ".yml"]
         yml_cache = [p for p in cachefiles if p.suffix == ".yml"]
@@ -30,7 +30,7 @@ class RepositoryViewer:
             ["argId", "stateId"], axis=1
         )
 
-    def _format_df(self, cachefiles):
+    def _format_df(self, cachefiles: list[Path]) -> pd.DataFrame:
         dt = [
             [i]
             + [datetime.datetime.fromtimestamp(c.stat().st_ctime).isoformat()]

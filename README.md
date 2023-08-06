@@ -16,7 +16,7 @@ An easy-to-use ML pipeline package for the purpose of speeding up your experimen
 
 <details>
 <summary>Low learning cost</summary>
-You don't need to learn a lot of package-specific terms and manner to define your pipeline. Each task used for imker are defined with sklearn-like interface. Existing sklearn modules are also used in imker as it is. Then, each task is connected to other tasks with PyTorch-like interface. The pipeline consists 5 components, PreProcessor, Splitter, OOFPreProcessor, Model, and PostProcessor. You can intuitively create a complex pipeline.
+You don't need to learn a lot of package-specific terms and manner to define your pipeline. Each task used for imker are defined with sklearn-like interface. Existing sklearn modules are also used in imker as it is. Then, each task is connected to other tasks with PyTorch-like interface. The pipeline consists of 5 components, PreProcessor, Splitter, OOFPreProcessor, Model, and PostProcessor. You can intuitively create a complex pipeline.
 </details>
 
 <details>
@@ -40,7 +40,7 @@ class DropCols(BaseTask):
 PyTorch-like interface allows user to understand how pipeline perform without large effort even if pipeline grows complex. Here is an example of the preprocessing components of the pipeline with the titanic dataset.
 
 ```python
-class PreProcessor(BaseProcessor):
+class PreProcessor(BasePreProcessor):
     def __init__(self):
         self.drop = Task(TaskConfig(task=DropCols, 
                                     init_params={"cols":["name", "cabin", "ticket", 
@@ -96,12 +96,13 @@ pipe.inference(X_test)
 
 # Installation
 ## Requirements
-- python >= 3.9
+- Python 3.9+
 
 ## Dependencies
 - [numpy](https://github.com/numpy/numpy)
 - [pandas](https://github.com/pandas-dev/pandas)
 - [pyyaml](https://github.com/yaml/pyyaml)
+- [pydantic](https://github.com/pydantic/pydantic)
 
 more details, see ./pyproject.toml
 

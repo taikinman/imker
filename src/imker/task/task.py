@@ -3,7 +3,9 @@ import pickle
 import time
 from functools import wraps
 from pathlib import Path
+from typing import Any, Callable, Iterator, Optional, Union
 
+import numpy as np
 import pandas as pd
 import yaml
 
@@ -17,12 +19,13 @@ from ..inspection import (
     parse_arguments,
 )
 from ..store.cacher import PickledBz2Cacher
+from ..types import ArrayLike
 from ..utils import set_seed
 from .config import TaskConfig
 
 
 class Task(object):
-    def __init__(self, config: TaskConfig):
+    def __init__(self, config: TaskConfig) -> None:
         self.cls_name = config.task.__name__
 
         self.config = config
@@ -30,15 +33,15 @@ class Task(object):
         self.task = config.task(**self.config.init_params)
 
         self.__repo_dir = self.config.repo_dir
-        self.__cache_processor = self.config.cache_processor
+        self.__cache_processor = self.config.cache_processor()
         self.__format = self.__cache_processor.format()
         self.__cache = self.config.cache
         self.__load_from = Path(self.config.load_from)
         self.__verbose = self.config.verbose
 
-    def timer(func):
+    def timer(func: Callable) -> Callable:
         @wraps(func)
-        def wrapper(self, *args, **kargs):
+        def wrapper(self, *args: tuple[Any], **kargs: dict[str, Any]) -> Any:
             start = time.time()
             result = func(self, *args, **kargs)
             elapsed_time = str(round(time.time() - start, 4))
@@ -53,7 +56,7 @@ class Task(object):
         return wrapper
 
     @timer
-    def fit(self, X, y=None, *args, **kwargs):
+    def fit(self, X: ArrayLike, y: Optional[ArrayLike] = None, *args, **kwargs):
         base_save_dir = self.__repo_dir / "task/fit" / self.cls_name
 
         set_seed(self.config.seed)
@@ -68,7 +71,7 @@ class Task(object):
 
         if save_to.exists():
             print(f"{self.cls_name} : load task...")
-            self.task = PickledBz2Cacher.load(save_to.as_posix())
+            self.task = PickledBz2Cacher().load(save_to.as_posix())
         else:
             if "X" in fit_args and "y" in fit_args:
                 self.task.fit(X, y, *args, **kwargs, **self.config.fit_params)
@@ -76,16 +79,17 @@ class Task(object):
                 self.task.fit(X, *args, **kwargs, **self.config.fit_params)
 
             save_to.parent.mkdir(parents=True, exist_ok=True)
-            PickledBz2Cacher.save(save_to.as_posix(), self.task)
+            PickledBz2Cacher().save(save_to.as_posix(), self.task)
 
             self.dump_config(save_to.parent, "fit")
 
         self.__load_from = save_to
-
         return self
 
     @timer
-    def transform(self, X, y=None):
+    def transform(self, X: ArrayLike, y: Optional[ArrayLike] = None) -> ArrayLike:
+        result: ArrayLike
+
         base_save_dir = self.__repo_dir / "task/transform" / self.cls_name
         set_seed(self.config.seed)
 
@@ -123,7 +127,8 @@ class Task(object):
         return result
 
     @timer
-    def predict(self, X):
+    def predict(self, X: ArrayLike) -> ArrayLike:
+        result: ArrayLike
         base_save_dir = self.__repo_dir / "task/predict" / self.cls_name
         set_seed(self.config.seed)
 
@@ -145,12 +150,13 @@ class Task(object):
 
                 self.dump_config(save_to.parent, "predict")
         else:
-            result = self.task.predict(X)
+            result = self.task.predict(X, **self.config.predict_params)
 
         return result
 
     @timer
-    def predict_proba(self, X):
+    def predict_proba(self, X: ArrayLike) -> ArrayLike:
+        result: ArrayLike
         base_save_dir = self.__repo_dir / "task/predict_proba" / self.cls_name
         set_seed(self.config.seed)
 
@@ -172,13 +178,15 @@ class Task(object):
 
                 self.dump_config(save_to.parent, "predict_proba")
         else:
-            result = self.task.predict_proba(X)
+            result = self.task.predict_proba(X, **self.config.predict_params)
 
         return result
 
-    def get_identifier(self, *args, **kwargs):
-        argument_hash = Path(get_identifier(*args, **kwargs))
-        state_hash = Path(get_identifier(src=get_code(self.config.task), state=self.task.__dict__))
+    def get_identifier(self, *args: Any, **kwargs: Any) -> Path:
+        argument_hash: Path = Path(get_identifier(*args, **kwargs))
+        state_hash: Path = Path(
+            get_identifier(src=get_code(self.config.task), state=self.task.__dict__)
+        )
         save_to = argument_hash / state_hash
         return save_to
 
@@ -186,7 +194,13 @@ class Task(object):
         return self.task.get_n_splits()
 
     @timer
-    def split(self, X, y=None, stratify=None, groups=None):
+    def split(
+        self,
+        X: ArrayLike,
+        y: Optional[ArrayLike] = None,
+        stratify: Optional[ArrayLike] = None,
+        groups: Optional[ArrayLike] = None,
+    ) -> Iterator[DataContainer[Any]]:
         set_seed(self.config.seed)
         base_save_dir = self.__repo_dir / "task/split" / self.cls_name
         split_id_ = self.get_identifier(X, y, stratify, groups)
@@ -197,7 +211,7 @@ class Task(object):
             self.__cache_processor.save(save_to.as_posix(), self.task)
             self.dump_config(save_to.parent, "split")
         else:
-            self.task = self.__cache_processor.load(save_to)
+            self.task = self.__cache_processor.load(save_to.as_posix())
 
         self.__load_from = save_to
 
@@ -207,36 +221,49 @@ class Task(object):
             folds = self.task.split(X, stratify, groups=groups)
 
         for idx_tr, idx_val in folds:
-            outputs = DataContainer()
+            outputs: DataContainer[Any] = DataContainer()
             outputs.X_train, outputs.y_train = self._split_dataset(X, y, idx_tr)
             outputs.X_valid, outputs.y_valid = self._split_dataset(X, y, idx_val)
             outputs.idx_train = idx_tr
             outputs.idx_valid = idx_val
             yield outputs
 
-    def _split_dataset(self, X, y, idx):
-        if isinstance(X, pd.DataFrame) or isinstance(X, pd.Series):
-            X_ = X.loc[idx]
+    def _split_dataset(
+        self, X: ArrayLike, y: Optional[ArrayLike], idx: list[int]
+    ) -> tuple[ArrayLike, ArrayLike]:
+        if isinstance(X, (pd.DataFrame, pd.Series)):
+            X_: Union[pd.DataFrame, pd.Series] = X.loc[idx]
         elif isinstance(X, list):
-            X_ = [X[i] for i in idx]
+            X_: list[Any] = [X[i] for i in idx]  # type: ignore
+        elif isinstance(X, np.ndarray):
+            X_ = X[idx]  # type: ignore
         else:
-            X_ = X[idx]
+            raise
 
-        if isinstance(y, pd.DataFrame) or isinstance(y, pd.Series):
+        if isinstance(y, (pd.DataFrame, pd.Series)):
             y_ = y.loc[idx]
         elif isinstance(y, list):
-            y_ = [y[i] for i in idx]
+            y_: list[Any] = [y[i] for i in idx]  # type: ignore
+        elif isinstance(y, np.ndarray):
+            y_ = y[idx]  # type: ignore
         else:
-            y_ = y[idx]
+            raise
 
         return X_, y_
 
-    def __call__(self, X, y=None, proba: bool = False, *args, **kwargs):
+    def __call__(
+        self,
+        X: ArrayLike,
+        y: Optional[ArrayLike] = None,
+        proba: bool = False,
+        *args,
+        **kwargs,
+    ):
         if hasfunc(self.task, "predict") or hasfunc(self.task, "predict_proba"):
             if self.__load_from.as_posix() == ".":
                 self.fit(X, y, *args, **kwargs)
             else:
-                self.task = PickledBz2Cacher.load(self.__load_from.as_posix())
+                self.task = PickledBz2Cacher().load(self.__load_from.as_posix())
 
                 if proba:
                     return self.predict_proba(X)
@@ -247,7 +274,7 @@ class Task(object):
             if self.__load_from.as_posix() == ".":
                 self.fit(X, y, *args, **kwargs)
             else:
-                self.task = PickledBz2Cacher.load(self.__load_from.as_posix())
+                self.task = PickledBz2Cacher().load(self.__load_from.as_posix())
 
             return self.transform(X, y)
 
@@ -255,24 +282,35 @@ class Task(object):
             return self.split(X, y, *args, **kwargs)
 
         else:
-            raise AssertionError
+            raise AssertionError(
+                "Task hasn't any required method, you should implement one of the transform(), \
+                split(), predict() or predict_proba()"
+            )
 
-    def test(self, X, y=None, proba: bool = False, *args, **kwargs):
-        results = self.__call__(X=X, y=y, proba=proba, *args, **kwargs)
+    def test(
+        self,
+        X: ArrayLike,
+        y: ArrayLike,
+        proba: bool = False,
+        *args,
+        **kwargs,
+    ) -> ArrayLike:
+        results: ArrayLike
+        results = self.__call__(X, y, proba, *args, **kwargs)
         self.reset_identifier()
         return results
 
-    def reset_identifier(self):
+    def reset_identifier(self) -> None:
         self.__load_from = Path("")
         self.task = self.config.task(**self.config.init_params)
 
     def __getstate__(self):
         raise pickle.PicklingError("Task object is not allowed to serialize.")
 
-    def dump_config(self, path: Path, method: str):
-        output = DataContainer()
-        config = copy.deepcopy(self.config)
-        config = self.format_config(config.asdict())
+    def dump_config(self, path: Path, method: str) -> None:
+        output: DataContainer[Any] = DataContainer()
+        config = copy.deepcopy(self.config).asdict()
+        config = self.format_config(config)
 
         if method == "fit":
             output.init_params = config.get("init_params")
@@ -293,7 +331,7 @@ class Task(object):
         with open(path / "task_config.yml", "w") as f:
             yaml.dump(output, f, indent=4)
 
-    def format_config(self, config: dict):
+    def format_config(self, config: dict[str, Any]) -> dict[str, Any]:
         for k, v in config.items():
             if is_dictlike(v):
                 config[k] = self.format_config(v)
@@ -301,8 +339,8 @@ class Task(object):
                 config[k] = v.__qualname__
             elif isinstance(v, list):
                 for i in range(len(v)):
-                    if is_dictlike(v):
-                        config[k] = self.format_config(v)
+                    if is_dictlike(v[i]):
+                        config[k][i] = self.format_config(v[i])
                     elif is_func_or_class(v[i]):
                         config[k][i] = config[k][i].__qualname__
             elif isinstance(v, Path):
@@ -310,25 +348,25 @@ class Task(object):
         return config
 
     @property
-    def identifier(self):
+    def identifier(self) -> str:
         return self.__load_from.as_posix()
 
     @identifier.setter
-    def identifier(self, identifier: str):
+    def identifier(self, identifier: Union[Path, str]) -> None:
         self.__load_from = Path(identifier)
 
     @property
-    def repo_dir(self):
+    def repo_dir(self) -> str:
         return self.__repo_dir.as_posix()
 
     @repo_dir.setter
-    def repo_dir(self, repo_dir: str):
+    def repo_dir(self, repo_dir: Union[Path, str]) -> None:
         self.__repo_dir = Path(repo_dir)
 
     @property
-    def verbose(self):
+    def verbose(self) -> bool:
         return self.__verbose
 
     @verbose.setter
-    def verbose(self, verbose: bool):
+    def verbose(self, verbose: bool) -> None:
         self.__verbose = verbose

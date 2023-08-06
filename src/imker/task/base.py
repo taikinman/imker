@@ -1,16 +1,13 @@
 import hashlib
 import pickle
-from typing import Any
-from abc import ABC, abstractmethod
+from typing import Optional
+
+from ..types import ArrayLike
 
 
-class BaseTask(ABC):
-    def fit(self, X: Any, y: Any = None):
+class BaseTask(object):
+    def fit(self, X: ArrayLike, y: Optional[ArrayLike] = None):
         return self
 
-    @abstractmethod
-    def transform(self, X: Any):
-        pass
-
-    def get_identifier(self, X):
+    def get_identifier(self, X: ArrayLike) -> str:
         return hashlib.sha256(pickle.dumps(X)).hexdigest()

@@ -1,15 +1,18 @@
 from collections import OrderedDict
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, field
 from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic.dataclasses import dataclass
+from yaml.dumper import Dumper
+from yaml.nodes import MappingNode
 
 from ..container.base import DataContainer
 from ..store.cacher import BaseCacher, PickledBz2Cacher
 
 
-def represent_odict(dumper, instance):
+def represent_odict(dumper: Dumper, instance: OrderedDict) -> MappingNode:
     return dumper.represent_mapping("tag:yaml.org,2002:map", instance.items())
 
 
@@ -24,9 +27,8 @@ class TaskConfig:
     and parameter for reproducibility.
 
     Parameters:
-        task : Any
-            Task that run a specific process inheriting BaseTask class or
-            scikit-learn object.
+        task : type[Any]
+            Task class inheriting BaseTask class or scikit-learn object.
         init_params : dict, optional
             Arguments of task's constructor.
         fit_params : dict, optional
@@ -51,18 +53,18 @@ class TaskConfig:
             Whether output the processing time of the each tasks.
     """
 
-    task: Any
-    init_params: dict = field(default_factory=dict)
-    fit_params: dict = field(default_factory=dict)
-    transform_params: dict = field(default_factory=dict)
-    predict_params: dict = field(default_factory=dict)
+    task: type[Any]
+    init_params: dict[str, Any] = field(default_factory=dict)
+    fit_params: dict[str, Any] = field(default_factory=dict)
+    transform_params: dict[str, Any] = field(default_factory=dict)
+    predict_params: dict[str, Any] = field(default_factory=dict)
     repo_dir: Path = Path(".imker")
-    cache_processor: BaseCacher = PickledBz2Cacher
+    cache_processor: type[BaseCacher] = PickledBz2Cacher
     cache: bool = False
     load_from: str = ""
     seed: int = 42
     verbose: bool = True
 
-    def asdict(self):
+    def asdict(self) -> dict[str, Any]:
         result = OrderedDict(asdict(self))
         return result
