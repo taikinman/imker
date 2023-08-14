@@ -26,6 +26,10 @@ from .config import TaskConfig
 
 class Task(object):
     def __init__(self, config: TaskConfig) -> None:
+        assert isinstance(
+            config, TaskConfig
+        ), "config argument must be the instance of the TaskConfig"
+
         self.cls_name = config.task.__name__
 
         self.config = config
@@ -282,10 +286,7 @@ class Task(object):
             return self.split(X, y, *args, **kwargs)
 
         else:
-            raise AssertionError(
-                "Task hasn't any required method, you should implement one of the transform(), \
-                split(), predict() or predict_proba()"
-            )
+            raise AssertionError
 
     def test(
         self,

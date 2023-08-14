@@ -20,16 +20,19 @@ def is_picklable(obj: Any) -> bool:
         return False
 
 
-def hasfunc(obj: Any, attr: str) -> bool:
-    return hasattr(obj, attr) and callable(getattr(obj, attr))
+def hasfunc(obj: Any, attr: str, hasany=False) -> bool:
+    if isinstance(attr, str):
+        return hasattr(obj, attr) and callable(getattr(obj, attr))
+    elif isinstance(attr, (tuple, list)) and hasany:
+        return any([hasattr(obj, a) and callable(getattr(obj, a)) for a in attr])
+    elif isinstance(attr, (tuple, list)) and not hasany:
+        return all([hasattr(obj, a) and callable(getattr(obj, a)) for a in attr])
+    else:
+        raise AssertionError
 
 
 def is_dictlike(obj: Any) -> bool:
-    return (
-        isinstance(obj, dict)
-        or isinstance(obj, DataContainer)
-        or isinstance(obj, OrderedDict)
-    )
+    return isinstance(obj, dict) or isinstance(obj, DataContainer) or isinstance(obj, OrderedDict)
 
 
 def is_func_or_class(obj: Any) -> bool:
