@@ -12,6 +12,12 @@ pandas = "^2.0.3"
 PyYAML = "^6.0"
 pydantic = "^1.10"
 
+[tool.poetry.group.lightning]
+optional = true
+
+[tool.poetry.group.lightning.dependencies]
+lightning = "^2.0.0"
+
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
 black = "^23.3.0"
@@ -34,6 +40,7 @@ select = [
     "B", # flake8-bugbear
     "I", # isort
 ]
+
 ignore = [
     "E501", # line too long, handled by black
     "B008", # do not perform function calls in argument defaults
@@ -54,7 +61,6 @@ exclude=[
 
 [tool.ruff.per-file-ignores]
 "example/*"=["E402"]
-
 
 [tool.mypy]
 python_version = 3.9
