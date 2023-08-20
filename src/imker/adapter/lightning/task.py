@@ -2,22 +2,22 @@ import copy
 import gc
 import glob
 import os
-import random
 from typing import Any, Callable, Iterable, Literal, Optional, Union
+
+import torch
 
 import lightning.pytorch as pl
 import lightning.pytorch.callbacks as plc
-import numpy as np
-import torch
 from lightning.pytorch import seed_everything
 from lightning.pytorch.accelerators import Accelerator
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.loggers import Logger
 from lightning.pytorch.strategies import Strategy
-from torch.utils.data import DataLoader
 
+from ...inspection import get_code
 from ...types import ArrayLike
 from .base import BaseDataset, BaseLightningModule, BaseLightningTask
+from .dataloader import LightningDataLoader
 
 _PRECISION_TYPE = Union[
     Literal[64, 32, 16],
@@ -26,101 +26,6 @@ _PRECISION_TYPE = Union[
 ]
 
 _LOGGER_TYPE = Optional[Union[Logger, Iterable[Logger], bool]]
-
-
-def seed_worker(worker_seed: int):
-    worker_seed = torch.initial_seed() % 2**32
-    np.random.seed(worker_seed)
-    random.seed(worker_seed)
-
-
-class LightningDataLoader(pl.LightningDataModule):
-    def __init__(
-        self,
-        batch_size: int,
-        num_workers: int = 0,
-        pin_memory: bool = False,
-        collate_fn: Optional[Callable] = None,
-        seed: int = 42,
-    ):
-        self.batch_size = batch_size
-        self.num_workers = num_workers
-        self.pin_memory = pin_memory
-        self.collate_fn = collate_fn
-        self.seed = seed
-
-    def _train_dataloader(
-        self,
-        X_train: ArrayLike,
-        y_train: ArrayLike,
-        dataset: type[BaseDataset],
-        dataset_params: Optional[dict[str, Any]] = None,
-    ) -> DataLoader:
-        if dataset_params is None:
-            _dataset = dataset(X=X_train, y=y_train)
-        else:
-            _dataset = dataset(X=X_train, y=y_train, **dataset_params)
-
-        g = torch.Generator()
-        g.manual_seed(self.seed)
-        return DataLoader(
-            _dataset,
-            batch_size=self.batch_size,
-            shuffle=True,
-            pin_memory=self.pin_memory,
-            drop_last=True,
-            num_workers=self.num_workers,
-            collate_fn=self.collate_fn,
-            worker_init_fn=seed_worker,
-            generator=g,
-        )
-
-    def _valid_dataloader(
-        self,
-        X_valid: ArrayLike,
-        y_valid: ArrayLike,
-        dataset: type[BaseDataset],
-        dataset_params: Optional[dict[str, Any]] = None,
-    ) -> DataLoader:
-        if dataset_params is None:
-            _dataset = dataset(X=X_valid, y=y_valid)
-        else:
-            _dataset = dataset(X=X_valid, y=y_valid, **dataset_params)
-        g = torch.Generator()
-        g.manual_seed(self.seed)
-
-        return DataLoader(
-            _dataset,
-            batch_size=self.batch_size,
-            shuffle=False,
-            pin_memory=self.pin_memory,
-            drop_last=False,
-            num_workers=self.num_workers,
-            collate_fn=self.collate_fn,
-            worker_init_fn=seed_worker,
-            generator=g,
-        )
-
-    def _test_dataloader(
-        self,
-        X_test: ArrayLike,
-        dataset: type[BaseDataset],
-        dataset_params: Optional[dict[str, Any]] = None,
-    ) -> DataLoader:
-        if dataset_params is None:
-            _dataset = dataset(X=X_test)
-        else:
-            _dataset = dataset(X=X_test, **dataset_params)
-
-        return DataLoader(
-            _dataset,
-            batch_size=self.batch_size,
-            shuffle=False,
-            pin_memory=self.pin_memory,
-            drop_last=False,
-            num_workers=self.num_workers,
-            collate_fn=self.collate_fn,
-        )
 
 
 class LightningTask(BaseLightningTask):
@@ -139,7 +44,7 @@ class LightningTask(BaseLightningTask):
         min_delta: float = 1e-5,
         monitor: str = "valid_loss",
         collate_fn: Optional[Callable] = None,
-        precision: _PRECISION_TYPE = 16,
+        precision: _PRECISION_TYPE = "16-mixed",
         limit_train_batches: float = 1.0,
         move_metrics_to_cpu: bool = False,
         plugins: Any = None,
@@ -157,7 +62,7 @@ class LightningTask(BaseLightningTask):
         accumulate_grad_batches: int = 1,
         gradient_clip_val: Optional[float] = None,
         sync_batchnorm: bool = False,
-        logger: _LOGGER_TYPE = None,
+        logger: Optional[_LOGGER_TYPE] = None,
     ):
         self.model_class = model
         self.model_init_params = (
@@ -302,69 +207,9 @@ class LightningTask(BaseLightningTask):
 
         gc.collect()
 
-    def predict(
-        self,
-        X: ArrayLike,
-        return_numpy=True,
-        checkpoint: Optional[str] = None,
-        accelerator: Union[str, Accelerator] = "auto",
-        devices: Union[list[int], str, int] = "auto",
-        strategy: Union[str, Strategy] = "auto",
-        model: Optional[BaseLightningModule] = None,
-    ):
-        prob = self.predict_proba(
-            X,
-            return_numpy=False,
-            checkpoint=checkpoint,
-            accelerator=accelerator,
-            devices=devices,
-            strategy=strategy,
-            model=model,
-        )
+        return self
 
-        if len(prob.shape) == 1 or prob.shape[1] == 1:
-            pred = torch.where(prob >= 0.5, 1, 0)
-        elif len(prob.shape) == 2:
-            pred = torch.argmax(prob, dim=-1)
-        else:
-            max_idx = torch.argmax(prob, dim=-1).long()
-            pred = torch.zeros(prob.shape, dtype=torch.int16)
-            pred.scatter_(dim=len(prob.shape) - 1, index=max_idx, src=1)  # type: ignore[call-overload]
-
-        if return_numpy:
-            return pred.numpy()
-        else:
-            return pred
-
-    def predict_proba(
-        self,
-        X: ArrayLike,
-        return_numpy=True,
-        checkpoint: Optional[str] = None,
-        accelerator: Union[str, Accelerator] = "auto",
-        devices: Union[list[int], str, int] = "auto",
-        strategy: Union[str, Strategy] = "auto",
-        model: Optional[BaseLightningModule] = None,
-    ):
-        logits = self._forward(
-            X, checkpoint, accelerator=accelerator, devices=devices, strategy=strategy, model=model
-        )
-
-        if len(logits.shape) == 1 or logits.shape[1] == 1:
-            prob = torch.sigmoid(logits)
-        elif len(logits.shape) == 2:  # multi-label or multi-class for table data
-            prob = torch.softmax(logits, dim=-1)
-        elif len(logits.shape) == 3:  # sequence classification
-            prob = torch.softmax(logits, dim=-1)
-        elif len(logits.shape) == 4:  # segmentation
-            prob = torch.softmax(logits.permute((0, 2, 3, 1)), dim=-1)
-
-        if return_numpy:
-            return prob.numpy()
-        else:
-            return prob
-
-    def _forward(
+    def forward(
         self,
         X: ArrayLike,
         checkpoint: Optional[str] = None,
@@ -388,6 +233,7 @@ class LightningTask(BaseLightningTask):
             batch_size=self.batch_size,
             num_workers=self.loader_num_workers,
             pin_memory=self.pin_memory,
+            collate_fn=self.collate_fn,
         )
 
         test_dataloader = dataloader._test_dataloader(
@@ -408,7 +254,10 @@ class LightningTask(BaseLightningTask):
 
         pred = trainer.predict(model=model, dataloaders=test_dataloader)
         if pred is not None:
-            pred = torch.cat([p.cpu().detach() for p in pred])  # type: ignore
+            pred = torch.cat([p.cpu().detach() for p in pred]).numpy()  # type: ignore
 
         gc.collect()
         return pred
+
+    def get_code(self):
+        return get_code(self.model_class)

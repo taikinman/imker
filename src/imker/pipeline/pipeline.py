@@ -45,7 +45,7 @@ class Pipeline(object):
         self.pipeline_name = Path(pipeline_name)
         self.verbose = verbose
 
-        self.preprocessor: BasePreProcessor
+        self.preprocessor: BasePreProcessor = BasePreProcessor()
         self.splitter: BaseSplitter
         self.model: Union[BaseModel, DataContainer[BaseModel]]
         self.oof_preprocessor: DataContainer[BasePreProcessor]
@@ -118,6 +118,7 @@ class Pipeline(object):
     def test_oof_preprocessing(self, X, y=None, **kwargs):
         assert hasattr(self, "splitter"), "splitter is not defined."
         assert hasattr(self, "oof_preprocessor"), "oof_preprocessor is not defined."
+
         for i, oof in enumerate(
             self.splitter.test(*self.preprocessor.test(X=dc(X), y=dc(y), **dc(kwargs)))
         ):
@@ -133,8 +134,6 @@ class Pipeline(object):
     def train(self, X: ArrayLike, y: Optional[ArrayLike], **kwargs):
         self.__TRAIN_STATUS = False
 
-        if not hasattr(self, "preprocessor"):
-            self.preprocessor = BasePreProcessor()
         self.preprocessor.reset_identifier()
 
         if hasattr(self, "splitter"):
@@ -208,7 +207,7 @@ class Pipeline(object):
 
                 preds[f"fold{i}"] = DataContainer(indices=oof.idx_valid, preds=val_preds)
 
-                if self.scorer is not None and calc_metrics:
+                if hasattr(self, "scorer") and calc_metrics:
                     __scores[f"fold{i}"] = self.scorer(oof.y_valid, val_preds)
 
             if calc_metrics:
@@ -226,7 +225,7 @@ class Pipeline(object):
         X_, _ = self.preprocessor(X=dc(X_test), y=None, **dc(kwargs))
         if hasattr(self, "splitter"):
             for i in range(self.splitter.get_n_splits()):
-                if self.oof_preprocessor is not None:
+                if hasattr(self, "oof_preprocessor"):
                     X_oof, _ = self.oof_preprocessor[f"fold{i}"](X=dc(X_), y=None)
                     if isinstance(self.model, DataContainer):
                         oof_preds = self.model[f"fold{i}"](X_oof, proba=proba)

@@ -39,6 +39,10 @@ def is_func_or_class(obj: Any) -> bool:
     return isfunction(obj) or isclass(obj)
 
 
+def is_builtin_class_instance(obj: Any):
+    return type(obj).__module__ == "builtins"
+
+
 def get_func_code(func: Callable) -> str:
     if not callable(func):
         raise ValueError("Input must be a function object")

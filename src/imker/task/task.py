@@ -14,6 +14,7 @@ from ..inspection import (
     get_code,
     get_identifier,
     hasfunc,
+    is_builtin_class_instance,
     is_dictlike,
     is_func_or_class,
     parse_arguments,
@@ -186,11 +187,44 @@ class Task(object):
 
         return result
 
+    @timer
+    def forward(self, X: ArrayLike) -> ArrayLike:
+        result: ArrayLike
+        base_save_dir = self.__repo_dir / "task/forward" / self.cls_name
+        set_seed(self.config.seed)
+
+        if self.__cache:
+            forward_id_ = self.get_identifier(X, proba=False, **self.config.predict_params)
+
+            save_to = base_save_dir / forward_id_ / f"task.{self.__format}"
+
+            if save_to.exists():
+                result = self.__cache_processor.load(save_to.as_posix())
+            else:
+                result = self.task.forward(X, **self.config.predict_params)
+
+                save_to = base_save_dir / forward_id_ / f"task.{self.__format}"
+
+                if ~save_to.exists():
+                    save_to.parent.mkdir(parents=True, exist_ok=True)
+                    self.__cache_processor.save(save_to.as_posix(), result)
+
+                self.dump_config(save_to.parent, "forward")
+        else:
+            result = self.task.forward(X, **self.config.predict_params)
+
+        return result
+
     def get_identifier(self, *args: Any, **kwargs: Any) -> Path:
         argument_hash: Path = Path(get_identifier(*args, **kwargs))
-        state_hash: Path = Path(
-            get_identifier(src=get_code(self.config.task), state=self.task.__dict__)
-        )
+        if hasfunc(self.task, "get_code"):
+            state_hash: Path = Path(
+                get_identifier(src=self.task.get_code(), state=self.task.__dict__)
+            )
+        else:
+            state_hash: Path = Path(
+                get_identifier(src=get_code(self.config.task), state=self.task.__dict__)
+            )
         save_to = argument_hash / state_hash
         return save_to
 
@@ -260,12 +294,20 @@ class Task(object):
         X: ArrayLike,
         y: Optional[ArrayLike] = None,
         proba: bool = False,
+        run_predict_on_fit_end: bool = False,
         *args,
         **kwargs,
     ):
         if hasfunc(self.task, "predict") or hasfunc(self.task, "predict_proba"):
             if self.__load_from.as_posix() == ".":
                 self.fit(X, y, *args, **kwargs)
+
+                if run_predict_on_fit_end:
+                    if proba:
+                        return self.predict_proba(X)
+                    else:
+                        return self.predict(X)
+
             else:
                 self.task = PickledBz2Cacher().load(self.__load_from.as_posix())
 
@@ -281,6 +323,16 @@ class Task(object):
                 self.task = PickledBz2Cacher().load(self.__load_from.as_posix())
 
             return self.transform(X, y)
+
+        elif hasfunc(self.task, "forward"):
+            if self.__load_from.as_posix() == ".":
+                self.fit(X, y, *args, **kwargs)
+
+                if run_predict_on_fit_end:
+                    return self.forward(X)
+            else:
+                self.task = PickledBz2Cacher().load(self.__load_from.as_posix())
+                return self.forward(X)
 
         elif hasfunc(self.task, "split"):
             return self.split(X, y, *args, **kwargs)
@@ -321,7 +373,7 @@ class Task(object):
         elif method == "transform":
             output.transform_params = config.get("transform_params")
             output.load_from = config.get("load_from")
-        elif method == "predict" or method == "predict_proba":
+        elif method == "predict" or method == "predict_proba" or method == "forward":
             output.predict_params = config.get("predict_params")
             output.load_from = config.get("load_from")
         elif method == "split":
@@ -344,8 +396,13 @@ class Task(object):
                         config[k][i] = self.format_config(v[i])
                     elif is_func_or_class(v[i]):
                         config[k][i] = config[k][i].__qualname__
+                    elif not is_builtin_class_instance(v):
+                        config[k] = type(v).__module__
+
             elif isinstance(v, Path):
                 config[k] = v.as_posix()
+            elif not is_builtin_class_instance(v):
+                config[k] = type(v).__module__
         return config
 
     @property
