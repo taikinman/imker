@@ -1,16 +1,28 @@
+import copy
 import hashlib
 import pickle
-from typing import Any
-from abc import ABC, abstractmethod
+from typing import Optional
+
+from ..inspection import get_code, hasfunc
+from ..types import ArrayLike
 
 
-class BaseTask(ABC):
-    def fit(self, X: Any, y: Any = None):
+class BaseTask(object):
+    def fit(self, X: ArrayLike, y: Optional[ArrayLike] = None):
         return self
 
-    @abstractmethod
-    def transform(self, X: Any):
-        pass
-
-    def get_identifier(self, X):
+    def get_identifier(self, X: ArrayLike) -> str:
         return hashlib.sha256(pickle.dumps(X)).hexdigest()
+
+    def __new__(cls, *args, **kwargs):
+        self = super().__new__(cls)
+        if hasfunc(cls, ("transform", "split", "predict", "predict_proba", "forward"), hasany=True):
+            return self
+        else:
+            raise NotImplementedError(
+                "Task hasn't any required method, you should implement one of the transform(), \
+split(), predict() or predict_proba(), and forward()"
+            )
+
+    def get_code(self):
+        return get_code(self.__class__)

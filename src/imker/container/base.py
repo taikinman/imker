@@ -1,12 +1,15 @@
 from collections import OrderedDict
 from keyword import iskeyword
-from typing import Any
+from typing import Any, TypeVar
+
+# Refer to https://github.com/cdgriffith/Box
+
+T = TypeVar("T")
 
 
-class DataContainer(OrderedDict):
+class DataContainer(OrderedDict[str, T]):
     """
-    A Container class that provides dot access to its elements.
-    Refer to https://github.com/cdgriffith/Box
+    A dict-like class that provides dot access to its elements.
     """
 
     def __getattr__(self, key: str) -> Any:
@@ -36,7 +39,7 @@ class DataContainer(OrderedDict):
         """
         self[key] = value
 
-    def __dir__(self):
+    def __dir__(self) -> list[Any]:
         items = set(super().__dir__())
         for key in self.keys():
             key = str(key)

@@ -2,19 +2,27 @@ import pickle
 from collections import defaultdict
 from copy import deepcopy as dc
 from pathlib import Path
+from typing import Any, DefaultDict, Optional, Union
 
 import numpy as np
 import pandas as pd
 import yaml
 
-from ..component.base import BaseModel, BaseProcessor, BaseScorer, BaseSplitter
+from ..component.base import (
+    BaseModel,
+    BasePostProcessor,
+    BasePreProcessor,
+    BaseScorer,
+    BaseSplitter,
+)
 from ..container.base import DataContainer
 from ..task.task import Task
+from ..types import ArrayLike
 
 
 class DefaultScorer(BaseScorer):
-    def calc_metrics(self, y_true, y_pred):
-        _results = defaultdict(dict)
+    def calc_metrics(self, y_true: ArrayLike, y_pred: dict[str, ArrayLike]) -> pd.Series:
+        _results: DefaultDict[str, dict] = defaultdict(dict)
         results = dict()
 
         for model, pred in y_pred.items():
@@ -25,61 +33,64 @@ class DefaultScorer(BaseScorer):
 
 
 class Pipeline(object):
-    def __init__(self, repo_dir: str, exp_name: str, pipeline_name: str, verbose: bool = True):
+    def __init__(
+        self,
+        repo_dir: Union[str, Path],
+        exp_name: Union[str, Path],
+        pipeline_name: Union[str, Path],
+        verbose: bool = True,
+    ) -> None:
         self.repo_dir = Path(repo_dir)
         self.exp_name = Path(exp_name)
         self.pipeline_name = Path(pipeline_name)
         self.verbose = verbose
 
-        self.preprocessor = None
-        self.splitter = None
-        self.oof_preprocessor = None
-        self.model = None
-        self.postprocessor = None
-        self.scorer = None
-        self.__TRAIN_STATUS = False
+        self.preprocessor: BasePreProcessor = BasePreProcessor()
+        self.splitter: BaseSplitter
+        self.model: Union[BaseModel, DataContainer[BaseModel]]
+        self.oof_preprocessor: DataContainer[BasePreProcessor]
+        self.postprocessor: BasePostProcessor
+        self.scorer: BaseScorer
+        self.__TRAIN_STATUS: bool = False
 
-    def set_preprocessor(self, preprocessor: BaseProcessor, *args, **kwargs):
-        self.preprocessor = preprocessor(*args, **kwargs)
+    def set_preprocessor(self, preprocessor: type[BasePreProcessor]) -> None:
+        self.preprocessor = preprocessor()
         self.preprocessor.set_repo_dir(self.repo_dir)
         self.preprocessor.set_verbose(self.verbose)
 
-    def set_splitter(self, splitter: BaseSplitter, *args, **kwargs):
-        self.splitter = splitter(*args, **kwargs)
+    def set_splitter(self, splitter: type[BaseSplitter]):
+        self.splitter = splitter()
         self.splitter.set_repo_dir(self.repo_dir)
         self.splitter.set_verbose(self.verbose)
 
-    def set_oof_preprocessor(self, oof_preprocessor: BaseProcessor, *args, **kwargs):
+    def set_oof_preprocessor(self, oof_preprocessor: type[BasePreProcessor]):
         assert (
             self.splitter is not None
         ), "attribute splitter is not defined. Please set splitter with set_splitter()\
             if you want to set oof preprocessor"
         self.oof_preprocessor = DataContainer(
-            {
-                f"fold{i}": oof_preprocessor(*args, **kwargs)
-                for i in range(self.splitter.get_n_splits())
-            }
+            {f"fold{i}": oof_preprocessor() for i in range(self.splitter.get_n_splits())}
         )
 
         for i in range(self.splitter.get_n_splits()):
             self.oof_preprocessor[f"fold{i}"].set_repo_dir(self.repo_dir)
             self.oof_preprocessor[f"fold{i}"].set_verbose(self.verbose)
 
-    def set_model(self, model: BaseModel, *args, **kwargs):
+    def set_model(self, model: type[BaseModel]):
         if self.splitter is None:
-            self.model = model(*args, **kwargs)
+            self.model = model()
             self.model.set_repo_dir(self.repo_dir)
             self.model.set_verbose(self.verbose)
         else:
             self.model = DataContainer(
-                {f"fold{i}": model(*args, **kwargs) for i in range(self.splitter.get_n_splits())}
+                {f"fold{i}": model() for i in range(self.splitter.get_n_splits())}
             )
 
             for i in range(self.splitter.get_n_splits()):
                 self.model[f"fold{i}"].set_repo_dir(self.repo_dir)
                 self.model[f"fold{i}"].set_verbose(self.verbose)
 
-    def set_metrics(self, metrics: list, scorer: BaseScorer = None):
+    def set_metrics(self, metrics: list, scorer: Optional[type[BaseScorer]] = None):
         metrics = metrics if isinstance(metrics, list) else [metrics]
 
         if scorer is None:
@@ -87,52 +98,49 @@ class Pipeline(object):
         else:
             self.scorer = scorer(metrics)
 
-    def set_postprocessor(self, postprocessor: BaseProcessor, *args, **kwargs):
+    def set_postprocessor(self, postprocessor: type[BasePostProcessor], *args, **kwargs):
         self.postprocessor = postprocessor(*args, **kwargs)
         self.postprocessor.set_repo_dir(self.repo_dir)
         self.postprocessor.set_verbose(self.verbose)
 
     def test_preprocessing(self, X, y=None, **kwargs):
+        assert hasattr(self, "preprocessor"), "preprocessor is not defined."
         return self.preprocessor.test(X=dc(X), y=dc(y), **dc(kwargs))
 
     def test_split(self, X, y=None, **kwargs):
-        if self.splitter is not None:
-            for i, oof in enumerate(
-                self.splitter.test(*self.preprocessor.test(X=dc(X), y=dc(y), **dc(kwargs)))
-            ):
-                yield oof
-        else:
-            raise AssertionError("splitter is not defined")
+        assert hasattr(self, "splitter"), "splitter is not defined."
+
+        for _i, oof in enumerate(
+            self.splitter.test(*self.preprocessor.test(X=dc(X), y=dc(y), **dc(kwargs)))
+        ):
+            yield oof
 
     def test_oof_preprocessing(self, X, y=None, **kwargs):
-        if self.splitter is not None:
-            for i, oof in enumerate(
-                self.splitter.test(*self.preprocessor.test(X=dc(X), y=dc(y), **dc(kwargs)))
-            ):
-                oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"].test(
-                    oof.X_train, oof.y_train, reset_identifier=False
-                )
-                oof.X_valid, oof.y_valid = self.oof_preprocessor[f"fold{i}"].test(
-                    oof.X_valid, oof.y_valid
-                )
+        assert hasattr(self, "splitter"), "splitter is not defined."
+        assert hasattr(self, "oof_preprocessor"), "oof_preprocessor is not defined."
 
-                yield oof
-        else:
-            raise AssertionError("splitter is not defined")
+        for i, oof in enumerate(
+            self.splitter.test(*self.preprocessor.test(X=dc(X), y=dc(y), **dc(kwargs)))
+        ):
+            oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"].test(
+                oof.X_train, oof.y_train, reset_identifier=False
+            )
+            oof.X_valid, oof.y_valid = self.oof_preprocessor[f"fold{i}"].test(
+                oof.X_valid, oof.y_valid
+            )
 
-    def train(self, X, y=None, **kwargs):
+            yield oof
+
+    def train(self, X: ArrayLike, y: Optional[ArrayLike], **kwargs):
         self.__TRAIN_STATUS = False
-
-        if self.preprocessor is None:
-            self.preprocessor = BaseProcessor()
 
         self.preprocessor.reset_identifier()
 
-        if self.splitter is not None:
+        if hasattr(self, "splitter"):
             for i, oof in enumerate(
                 self.splitter(*self.preprocessor(X=dc(X), y=dc(y), **dc(kwargs)))
             ):
-                if self.oof_preprocessor is not None:
+                if hasattr(self, "oof_preprocessor"):
                     self.oof_preprocessor[f"fold{i}"].reset_identifier()
 
                     oof.X_train, oof.y_train = self.oof_preprocessor[f"fold{i}"](
@@ -142,91 +150,119 @@ class Pipeline(object):
                         oof.X_valid, oof.y_valid
                     )
 
-                self.model[f"fold{i}"].reset_identifier()
+                if isinstance(self.model, DataContainer):
+                    self.model[f"fold{i}"].reset_identifier()
 
-                self.model[f"fold{i}"](
-                    oof.X_train, oof.y_train, eval_set=[(oof.X_valid, oof.y_valid)]
-                )
+                    self.model[f"fold{i}"](
+                        oof.X_train, oof.y_train, eval_set=[(oof.X_valid, oof.y_valid)]
+                    )
+                else:
+                    raise
         else:
             X_, y_ = self.preprocessor(X=dc(X), y=dc(y), **dc(kwargs))
             self.model.reset_identifier()
-            self.model(X_, y_)
+
+            if isinstance(self.model, BaseModel):
+                self.model(X_, y_)
+            else:
+                raise
 
         self.__TRAIN_STATUS = True
         self.dump()
 
         return self
 
-    def validate(self, X, y=None, proba=False, calc_metrics: bool = True, **kwargs):
+    def validate(
+        self,
+        X: ArrayLike,
+        y: ArrayLike,
+        proba: bool = False,
+        calc_metrics: bool = True,
+        **kwargs,
+    ):
         assert self.__TRAIN_STATUS, "train must be run before validation"
 
-        preds = DataContainer()
-        self.__scores = DataContainer()
+        preds: DataContainer[DataContainer] = DataContainer()
+        __scores: DataContainer[pd.Series] = DataContainer()
+        self.__scores: pd.DataFrame
 
-        if self.splitter is not None:
+        if hasattr(self, "splitter"):
             for i, oof in enumerate(
                 self.splitter(*self.preprocessor(X=dc(X), y=dc(y), **dc(kwargs)))
             ):
-                if self.oof_preprocessor is not None:
+                if hasattr(self, "oof_preprocessor"):
                     oof.X_valid, oof.y_valid = self.oof_preprocessor[f"fold{i}"](
                         oof.X_valid, oof.y_valid
                     )
 
-                val_preds = self.model[f"fold{i}"](oof.X_valid, proba=proba)
-                val_preds = DataContainer(val_preds)
+                if isinstance(self.model, DataContainer):
+                    val_preds = self.model[f"fold{i}"](oof.X_valid, proba=proba)
+                else:
+                    raise
 
-                if self.postprocessor is not None:
+                if hasattr(self, "postprocessor") and isinstance(
+                    self.postprocessor, BasePostProcessor
+                ):
                     val_preds = self.postprocessor(oof.X_valid, val_preds)
 
                 preds[f"fold{i}"] = DataContainer(indices=oof.idx_valid, preds=val_preds)
 
-                if self.scorer is not None and calc_metrics:
-                    self.__scores[f"fold{i}"] = self.scorer(oof.y_valid, val_preds)
+                if hasattr(self, "scorer") and calc_metrics:
+                    __scores[f"fold{i}"] = self.scorer(oof.y_valid, val_preds)
 
             if calc_metrics:
-                self.__scores = pd.concat(self.__scores, axis=1)
+                self.__scores = pd.concat(__scores, axis=1)
 
-            preds = self.organize_validation_results(preds)
-
-            return preds
+            return self.organize_validation_results(preds)
 
         else:
             raise AssertionError("splitter is not configured.")
 
-    def inference(self, X_test, proba=False, **kwargs):
+    def inference(self, X_test: ArrayLike, proba=False, **kwargs):
         assert self.__TRAIN_STATUS, "train must be run before inference"
 
-        preds = DataContainer()
+        _preds: DataContainer[dict[str, ArrayLike]] = DataContainer()
         X_, _ = self.preprocessor(X=dc(X_test), y=None, **dc(kwargs))
-        if self.splitter is not None:
+        if hasattr(self, "splitter"):
             for i in range(self.splitter.get_n_splits()):
-                if self.oof_preprocessor is not None:
+                if hasattr(self, "oof_preprocessor"):
                     X_oof, _ = self.oof_preprocessor[f"fold{i}"](X=dc(X_), y=None)
-                    oof_preds = self.model[f"fold{i}"](X_oof, proba=proba)
+                    if isinstance(self.model, DataContainer):
+                        oof_preds = self.model[f"fold{i}"](X_oof, proba=proba)
+                    else:
+                        raise
                 else:
-                    oof_preds = self.model[f"fold{i}"](X_, proba=proba)
+                    if isinstance(self.model, DataContainer):
+                        oof_preds = self.model[f"fold{i}"](X_, proba=proba)
+                    else:
+                        raise
                     oof_preds = DataContainer(oof_preds)
 
-                if self.postprocessor is not None:
+                if hasattr(self, "postprocessor") and isinstance(
+                    self.postprocessor, BasePostProcessor
+                ):
                     oof_preds = self.postprocessor(X_oof, oof_preds)
 
-                preds[f"fold{i}"] = oof_preds
+                _preds[f"fold{i}"] = oof_preds
 
-            preds = self.organize_inference_results(preds)
+            return self.organize_inference_results(_preds)
 
         else:
-            preds = self.model(X_, proba=proba)
-            preds = self.postprocessor(X=X_, y=preds)
+            if isinstance(self.model, BaseModel):
+                preds = self.model(X_, proba=proba)
 
-        return preds
+            if hasattr(self, "postprocessor") and isinstance(self.postprocessor, BasePostProcessor):
+                return self.postprocessor(X=X_, y=preds)
 
     def get_scores(self):
         return self.__scores
 
-    def organize_validation_results(self, val_preds):
-        indices = np.array(())
-        results = defaultdict(list)
-        for fold, preds in val_preds.items():
+    def organize_validation_results(
+        self, val_preds: DataContainer[Any]
+    ) -> DataContainer[ArrayLike]:
+        indices: np.ndarray = np.array(())
+        results: defaultdict[str, Any] = defaultdict(list)
+        for _fold, preds in val_preds.items():
             indices = np.hstack([indices, preds.indices])
 
             for model, out in preds.preds.items():
@@ -242,9 +278,9 @@ class Pipeline(object):
 
         return DataContainer(results)
 
-    def organize_inference_results(self, test_preds):
+    def organize_inference_results(self, test_preds) -> DataContainer[ArrayLike]:
         results = defaultdict(list)
-        for fold, preds in test_preds.items():
+        for _fold, preds in test_preds.items():
             for model, out in preds.items():
                 results[model].append(out)
 
@@ -255,17 +291,17 @@ class Pipeline(object):
     @classmethod
     def load(
         cls,
-        repo_dir: str,
-        exp_name: str,
-        pipeline_name: str,
+        repo_dir: Union[str, Path],
+        exp_name: Union[str, Path],
+        pipeline_name: Union[str, Path],
         verbose: bool = True,
-        preprocessor: BaseProcessor = None,
-        oof_preprocessor: BaseProcessor = None,
-        splitter: BaseSplitter = None,
-        model: BaseModel = None,
-        postprocessor: BaseProcessor = None,
+        preprocessor: Optional[type[BasePreProcessor]] = None,
+        oof_preprocessor: Optional[type[BasePreProcessor]] = None,
+        splitter: Optional[type[BaseSplitter]] = None,
+        model: Optional[type[BaseModel]] = None,
+        postprocessor: Optional[type[BasePostProcessor]] = None,
     ):
-        def _check_load_attrs(obj, config, tag):
+        def _check_load_attrs(obj: Any, config: dict[str, Any], tag: str) -> None:
             assert set([k for k, v in obj.__dict__.items() if isinstance(v, Task)]) == set(
                 config.keys()
             ), f"Keys didn't match between pipeline config and {tag}"
@@ -277,102 +313,101 @@ class Pipeline(object):
         config_path = repo_dir / "pipeline" / exp_name / f"{pipeline_name.as_posix()}.yml"
 
         pipe = cls(
-            repo_dir=repo_dir, exp_name=exp_name, pipeline_name=pipeline_name, verbose=verbose
+            repo_dir=repo_dir,
+            exp_name=exp_name,
+            pipeline_name=pipeline_name,
+            verbose=verbose,
         )
 
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)
 
-        if "preprocessor" in config:
-            assert (
-                preprocessor is not None
-            ), "pipeline needs preprocessor but you don't pass preprocessor argument"
-
-            pipe.set_preprocessor(preprocessor)
-
+        if preprocessor is not None:
+            pipe.preprocessor = preprocessor.load(config["preprocessor"])
             _check_load_attrs(pipe.preprocessor, config["preprocessor"], "preprocessor")
-
-            for attr, id_ in config["preprocessor"].items():
-                pipe.preprocessor.set_identifier(attr, id_)
+            pipe.preprocessor.set_repo_dir(repo_dir)
 
         if "splitter" in config:
             assert (
                 splitter is not None
             ), "pipeline needs splitter but you don't pass splitter argument"
 
-            pipe.set_splitter(splitter)
+            pipe.splitter = splitter.load(config["splitter"])
             _check_load_attrs(pipe.splitter, config["splitter"], "splitter")
-
-            for attr, id_ in config["splitter"].items():
-                pipe.splitter.set_identifier(attr, id_)
+            pipe.splitter.set_repo_dir(repo_dir)
 
         if "oof_preprocessor" in config:
             assert (
                 oof_preprocessor is not None
             ), "pipeline needs oof_preprocessor but you don't pass oof_preprocessor argument"
 
-            pipe.set_oof_preprocessor(oof_preprocessor)
+            pipe.oof_preprocessor = DataContainer()
             for fold, c in config["oof_preprocessor"].items():
+                pipe.oof_preprocessor.update({fold: oof_preprocessor.load(c)})
                 _check_load_attrs(pipe.oof_preprocessor[fold], c, "oof_preprocessor")
-
-                for attr, id_ in c.items():
-                    pipe.oof_preprocessor[fold].set_identifier(attr, id_)
+                pipe.oof_preprocessor[fold].set_repo_dir(repo_dir)
 
         if "model" in config:
             assert model is not None, "pipeline needs model but you don't pass model argument"
 
             pipe.set_model(model)
             if pipe.splitter is not None:
+                pipe.model = DataContainer()
                 for fold, c in config["model"].items():
+                    pipe.model.update({fold: model.load(c)})
                     _check_load_attrs(pipe.model[fold], c, "model")
+                    pipe.model[fold].set_repo_dir(repo_dir)
 
-                    for attr, id_ in c.items():
-                        pipe.model[fold].set_identifier(attr, id_)
             else:
+                pipe.model = model.load(config["model"])
                 _check_load_attrs(pipe.model, config["model"], "model")
-                for attr, id_ in config["model"].items():
-                    pipe.model.set_identifier(attr, id_)
+                pipe.model.set_repo_dir(repo_dir)
 
         if "postprocessor" in config:
             assert (
                 postprocessor is not None
             ), "pipeline needs postprocessor but you don't pass postprocessor argument"
 
-            pipe.set_postprocessor(postprocessor)
+            pipe.postprocessor = postprocessor.load(config["postprocessor"])
             _check_load_attrs(pipe.postprocessor, config["postprocessor"], "postprocessor")
-            for attr, id_ in config["postprocessor"].items():
-                pipe.postprocessor.set_identifier(attr, id_)
+            pipe.postprocessor.set_repo_dir(repo_dir)
 
         pipe.train_status = config["train_status"]
         return pipe
 
-    def dump(self):
+    def dump(self) -> None:
         save_dir = self.repo_dir / "pipeline" / self.exp_name
-        output = DataContainer()
+        output: DataContainer[Any] = DataContainer()
 
-        if self.preprocessor is not None:
+        if hasattr(self, "preprocessor"):
             output["preprocessor"] = self.preprocessor.identifier
 
-        if self.splitter is not None:
+        if hasattr(self, "splitter"):
             output["splitter"] = self.splitter.identifier
 
-        if self.oof_preprocessor is not None:
-            oof_pp_id = DataContainer()
+        if hasattr(self, "oof_preprocessor"):
+            oof_pp_id: DataContainer[str] = DataContainer()
             for i in range(self.splitter.get_n_splits()):
                 oof_pp_id[f"fold{i}"] = self.oof_preprocessor[f"fold{i}"].identifier
             output["oof_preprocessor"] = oof_pp_id
 
-        if self.model is not None:
-            oof_model_id = DataContainer()
+        if hasattr(self, "model"):
+            oof_model_id: DataContainer[str] = DataContainer()
             if self.splitter is not None:
                 for i in range(self.splitter.get_n_splits()):
-                    oof_model_id[f"fold{i}"] = self.model[f"fold{i}"].identifier
+                    if isinstance(self.model, DataContainer):
+                        oof_model_id[f"fold{i}"] = self.model[f"fold{i}"].identifier
+                    else:
+                        raise
 
                 output["model"] = oof_model_id
             else:
-                output["model"] = self.model.identifier
+                if isinstance(self.model, BaseModel):
+                    output["model"] = self.model.identifier
+                else:
+                    raise
 
-        if self.postprocessor is not None:
+        if hasattr(self, "postprocessor"):
             output["postprocessor"] = self.postprocessor.identifier
 
         output["train_status"] = self.__TRAIN_STATUS
