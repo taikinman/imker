@@ -272,7 +272,7 @@ class Pipeline(object):
             try:
                 results[model] = np.vstack(results[model])
                 assert len(results[model]) == len(indices)
-            except AssertionError:
+            except:
                 results[model] = np.hstack(results[model])
             results[model] = results[model][np.argsort(indices)]
 
@@ -322,68 +322,55 @@ class Pipeline(object):
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)
 
-        if "preprocessor" in config:
-            assert (
-                preprocessor is not None
-            ), "pipeline needs preprocessor but you don't pass preprocessor argument"
-
-            pipe.set_preprocessor(preprocessor)
-
+        if preprocessor is not None:
+            pipe.preprocessor = preprocessor.load(config["preprocessor"])
             _check_load_attrs(pipe.preprocessor, config["preprocessor"], "preprocessor")
-
-            for attr, id_ in config["preprocessor"].items():
-                pipe.preprocessor.set_identifier(attr, id_)
+            pipe.preprocessor.set_repo_dir(repo_dir)
 
         if "splitter" in config:
             assert (
                 splitter is not None
             ), "pipeline needs splitter but you don't pass splitter argument"
 
-            pipe.set_splitter(splitter)
+            pipe.splitter = splitter.load(config["splitter"])
             _check_load_attrs(pipe.splitter, config["splitter"], "splitter")
-
-            for attr, id_ in config["splitter"].items():
-                pipe.splitter.set_identifier(attr, id_)
+            pipe.splitter.set_repo_dir(repo_dir)
 
         if "oof_preprocessor" in config:
             assert (
                 oof_preprocessor is not None
             ), "pipeline needs oof_preprocessor but you don't pass oof_preprocessor argument"
 
-            pipe.set_oof_preprocessor(oof_preprocessor)
+            pipe.oof_preprocessor = DataContainer()
             for fold, c in config["oof_preprocessor"].items():
+                pipe.oof_preprocessor.update({fold: oof_preprocessor.load(c)})
                 _check_load_attrs(pipe.oof_preprocessor[fold], c, "oof_preprocessor")
-
-                for attr, id_ in c.items():
-                    pipe.oof_preprocessor[fold].set_identifier(attr, id_)
+                pipe.oof_preprocessor[fold].set_repo_dir(repo_dir)
 
         if "model" in config:
             assert model is not None, "pipeline needs model but you don't pass model argument"
 
             pipe.set_model(model)
             if pipe.splitter is not None:
+                pipe.model = DataContainer()
                 for fold, c in config["model"].items():
-                    if isinstance(pipe.model, DataContainer):
-                        _check_load_attrs(pipe.model[fold], c, "model")
+                    pipe.model.update({fold: model.load(c)})
+                    _check_load_attrs(pipe.model[fold], c, "model")
+                    pipe.model[fold].set_repo_dir(repo_dir)
 
-                        for attr, id_ in c.items():
-                            pipe.model[fold].set_identifier(attr, id_)
-                    else:
-                        raise
             else:
+                pipe.model = model.load(config["model"])
                 _check_load_attrs(pipe.model, config["model"], "model")
-                for attr, id_ in config["model"].items():
-                    pipe.model.set_identifier(attr, id_)
+                pipe.model.set_repo_dir(repo_dir)
 
         if "postprocessor" in config:
             assert (
                 postprocessor is not None
             ), "pipeline needs postprocessor but you don't pass postprocessor argument"
 
-            pipe.set_postprocessor(postprocessor)
+            pipe.postprocessor = postprocessor.load(config["postprocessor"])
             _check_load_attrs(pipe.postprocessor, config["postprocessor"], "postprocessor")
-            for attr, id_ in config["postprocessor"].items():
-                pipe.postprocessor.set_identifier(attr, id_)
+            pipe.postprocessor.set_repo_dir(repo_dir)
 
         pipe.train_status = config["train_status"]
         return pipe

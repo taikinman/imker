@@ -36,7 +36,7 @@ def is_dictlike(obj: Any) -> bool:
 
 
 def is_func_or_class(obj: Any) -> bool:
-    return isfunction(obj) or isclass(obj)
+    return (isfunction(obj) or callable(obj)) or isclass(obj)
 
 
 def is_builtin_class_instance(obj: Any):

@@ -44,9 +44,6 @@ class TaskConfig:
             Serialization or file processor to cache the output of the task.
         cache : bool, default=False.
             If true, the outputs of transform(), predict() or predict_proba() are cached.
-        load_from : str, optional
-            Path to cached the task. If this arguments is specified, the task load cached instance
-            instead of running fit().
         seed : int, default=42.
             Seed for reproducibility.
         verbose : bool, default=True.
@@ -61,7 +58,6 @@ class TaskConfig:
     repo_dir: Path = Path(".imker")
     cache_processor: type[BaseCacher] = PickledBz2Cacher
     cache: bool = False
-    load_from: str = ""
     seed: int = 42
     verbose: bool = True
 

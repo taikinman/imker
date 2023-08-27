@@ -2,6 +2,7 @@ import copy
 import gc
 import glob
 import os
+from pathlib import Path
 from typing import Any, Callable, Iterable, Literal, Optional, Union
 
 import torch
@@ -14,7 +15,7 @@ from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.loggers import Logger
 from lightning.pytorch.strategies import Strategy
 
-from ...inspection import get_code
+from ...inspection import get_code, get_identifier, hasfunc
 from ...types import ArrayLike
 from .base import BaseDataset, BaseLightningModule, BaseLightningTask
 from .dataloader import LightningDataLoader
@@ -25,7 +26,7 @@ _PRECISION_TYPE = Union[
     Literal["64", "32", "16", "bf16"],
 ]
 
-_LOGGER_TYPE = Optional[Union[Logger, Iterable[Logger], bool]]
+_LOGGER_TYPE = Union[type[Logger], bool]
 
 
 class LightningTask(BaseLightningTask):
@@ -43,7 +44,8 @@ class LightningTask(BaseLightningTask):
         early_stopping_round: Optional[int] = None,
         min_delta: float = 1e-5,
         monitor: str = "valid_loss",
-        collate_fn: Optional[Callable] = None,
+        collate_fn: Optional[Union[type[Any], Callable]] = None,
+        collate_fn_params: Optional[dict[str, Any]] = None,
         precision: _PRECISION_TYPE = "16-mixed",
         limit_train_batches: float = 1.0,
         move_metrics_to_cpu: bool = False,
@@ -52,7 +54,7 @@ class LightningTask(BaseLightningTask):
         pin_memory: bool = False,
         ckpt_name: str = "best_model",
         batch_size: int = 16,
-        checkpoint_path: str = "./checkpoint",
+        checkpoint_dir: str = "./checkpoint",
         seed: int = 42,
         save_every_n_epochs: Optional[int] = None,
         save_top_k: int = 1,
@@ -63,6 +65,7 @@ class LightningTask(BaseLightningTask):
         gradient_clip_val: Optional[float] = None,
         sync_batchnorm: bool = False,
         logger: Optional[_LOGGER_TYPE] = None,
+        logger_params: Optional[dict[str, Any]] = None,
     ):
         self.model_class = model
         self.model_init_params = (
@@ -86,7 +89,15 @@ class LightningTask(BaseLightningTask):
         )
         self.min_delta = min_delta
         self.monitor = monitor
-        self.collate_fn = collate_fn
+
+        if collate_fn_params is None:
+            collate_fn_params = dict()
+
+        if isinstance(collate_fn, type):
+            self.collate_fn = collate_fn(**collate_fn_params)
+        else:
+            self.collate_fn = collate_fn
+
         self.precision = precision
         self.limit_train_batches = limit_train_batches
         self.move_metrics_to_cpu = move_metrics_to_cpu
@@ -95,7 +106,7 @@ class LightningTask(BaseLightningTask):
         self.pin_memory = pin_memory
         self.ckpt_name = ckpt_name
         self.batch_size = batch_size
-        self.checkpoint_path = checkpoint_path
+        self.checkpoint_dir = checkpoint_dir
         self.seed = seed
         self.save_every_n_epochs = save_every_n_epochs
         self.save_top_k = save_top_k
@@ -105,10 +116,14 @@ class LightningTask(BaseLightningTask):
         self.accumulate_grad_batches = accumulate_grad_batches
         self.gradient_clip_val = gradient_clip_val
         self.sync_batchnorm = sync_batchnorm
-        self.logger = logger
 
-        os.makedirs(f"{self.checkpoint_path}", exist_ok=True)
-        self.model_id = len(glob.glob(f"{self.checkpoint_path}/{self.ckpt_name}*.ckpt"))
+        if logger_params is None:
+            logger_params = dict()
+
+        if isinstance(logger, type):
+            self.logger = logger(**logger_params)
+        else:
+            self.logger = logger  # type: ignore
 
     def _get_default_callbacks(self) -> list:
         callbacks = [
@@ -120,13 +135,14 @@ class LightningTask(BaseLightningTask):
             ),
             plc.ModelCheckpoint(
                 monitor=self.monitor,
-                dirpath=f"{self.checkpoint_path}",
-                filename=f"{self.ckpt_name}_{self.model_id}",
+                dirpath=f"{self.checkpoint_dir}",
+                filename=f"{self.ckpt_name}_{self.model_id_}",
                 mode="min",
                 save_weights_only=True,
                 every_n_epochs=self.save_every_n_epochs,
                 save_top_k=self.save_top_k,
             ),
+            plc.TQDMProgressBar(refresh_rate=1),
         ]
 
         return callbacks
@@ -138,6 +154,8 @@ class LightningTask(BaseLightningTask):
         eval_set: Optional[list[tuple[ArrayLike, ArrayLike]]] = None,
         callbacks: Optional[Union[list[Callback], Callback]] = None,
     ):
+        self.model_id_ = self.get_identifier(X=X, y=y, eval_set=eval_set)
+
         if callbacks is None:
             callbacks = self._get_default_callbacks()
 
@@ -177,7 +195,7 @@ class LightningTask(BaseLightningTask):
             max_epochs=self.epochs,
             callbacks=callbacks,
             precision=self.precision,
-            default_root_dir=self.checkpoint_path,
+            default_root_dir=self.checkpoint_dir,
             logger=self.logger,
             limit_train_batches=self.limit_train_batches,
             # move_metrics_to_cpu=self.move_metrics_to_cpu,
@@ -197,8 +215,8 @@ class LightningTask(BaseLightningTask):
             val_dataloaders=valid_dataloader,
         )
 
-        if os.path.exists(f"{self.checkpoint_path}/{self.ckpt_name}_{self.model_id}.tmp_end.ckpt"):
-            os.remove(f"{self.checkpoint_path}/{self.ckpt_name}_{self.model_id}.tmp_end.ckpt")
+        if os.path.exists(f"{self.checkpoint_dir}/{self.ckpt_name}_{self.model_id_}.tmp_end.ckpt"):
+            os.remove(f"{self.checkpoint_dir}/{self.ckpt_name}_{self.model_id_}.tmp_end.ckpt")
 
         del trainer
         del train_dataloader
@@ -219,11 +237,11 @@ class LightningTask(BaseLightningTask):
         model: Optional[BaseLightningModule] = None,
     ):
         if checkpoint is None:
-            checkpoint = f"{self.checkpoint_path}/{self.ckpt_name}_{self.model_id}.ckpt"
+            checkpoint = f"{self.checkpoint_dir}/{self.ckpt_name}_{self.model_id_}.ckpt"
 
         if model is None:
             model = self.model_class.load_from_checkpoint(
-                checkpoint_path=checkpoint,
+                checkpoint_path=checkpoint, **self.model_init_params
             )
 
         model.eval()
@@ -254,10 +272,18 @@ class LightningTask(BaseLightningTask):
 
         pred = trainer.predict(model=model, dataloaders=test_dataloader)
         if pred is not None:
-            pred = torch.cat([p.cpu().detach() for p in pred]).numpy()  # type: ignore
+            pred = torch.cat([p.detach().cpu() for p in pred]).numpy()  # type: ignore
 
         gc.collect()
         return pred
 
-    def get_code(self):
+    def get_identifier(self, *args: Any, **kwargs: Any) -> Path:
+        argument_hash: Path = Path(get_identifier(*args, **kwargs))
+        state_hash: Path = Path(  # type: ignore[no-redef]
+            get_identifier(src=get_code(self.model_class), state=self.get_state())
+        )
+        save_to = argument_hash / state_hash
+        return save_to
+
+    def get_code(self) -> str:
         return get_code(self.model_class)

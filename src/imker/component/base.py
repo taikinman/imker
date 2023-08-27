@@ -4,11 +4,22 @@ from typing import Any, Iterator, Optional, Union
 
 from ..container.base import DataContainer
 from ..inspection import parse_arguments
+from ..store.cacher import PickledBz2Cacher
 from ..task.task import Task
 from ..types import ArrayLike
 
 
 class _Base(ABC):
+    @classmethod
+    def load(cls, identifiers: dict[str, str], **kwargs):
+        obj = cls(**kwargs)
+        for k, v in obj.__dict__.items():
+            if isinstance(v, Task):
+                v.task = v.load(identifiers[k])
+                v.train_status = True
+                setattr(obj, k, v)
+        return obj
+
     def set_identifier(self, attr, identifier: Union[Path, str]) -> None:
         getattr(self, attr).identifier = identifier
 

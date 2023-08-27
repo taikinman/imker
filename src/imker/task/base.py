@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import pickle
 from typing import Optional

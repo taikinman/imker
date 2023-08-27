@@ -32,17 +32,17 @@ class Task(object):
         ), "config argument must be the instance of the TaskConfig"
 
         self.cls_name = config.task.__name__
-
         self.config = config
-
-        self.task = config.task(**self.config.init_params)
 
         self.__repo_dir = self.config.repo_dir
         self.__cache_processor = self.config.cache_processor()
         self.__format = self.__cache_processor.format()
         self.__cache = self.config.cache
-        self.__load_from = Path(self.config.load_from)
+        self.__identifier = Path("")
         self.__verbose = self.config.verbose
+        self.__train_status: bool = False
+
+        self.task = config.task(**self.config.init_params)
 
     def timer(func: Callable) -> Callable:
         @wraps(func)
@@ -88,7 +88,8 @@ class Task(object):
 
             self.dump_config(save_to.parent, "fit")
 
-        self.__load_from = save_to
+        self.__identifier = save_to
+        self.__train_status = True
         return self
 
     @timer
@@ -217,13 +218,21 @@ class Task(object):
 
     def get_identifier(self, *args: Any, **kwargs: Any) -> Path:
         argument_hash: Path = Path(get_identifier(*args, **kwargs))
+        state = copy.deepcopy(self.task.__dict__)
+
+        remove = []
+        for key in state.keys():
+            if key.endswith("_"):
+                remove.append(key)
+
+        for key in remove:
+            del state[key]
+
         if hasfunc(self.task, "get_code"):
-            state_hash: Path = Path(
-                get_identifier(src=self.task.get_code(), state=self.task.__dict__)
-            )
+            state_hash: Path = Path(get_identifier(src=self.task.get_code(), state=state))
         else:
-            state_hash: Path = Path(
-                get_identifier(src=get_code(self.config.task), state=self.task.__dict__)
+            state_hash: Path = Path(  # type: ignore[no-redef]
+                get_identifier(src=get_code(self.config.task), state=state)
             )
         save_to = argument_hash / state_hash
         return save_to
@@ -251,7 +260,7 @@ class Task(object):
         else:
             self.task = self.__cache_processor.load(save_to.as_posix())
 
-        self.__load_from = save_to
+        self.__identifier = save_to
 
         if stratify is None:
             folds = self.task.split(X, y, groups=groups)
@@ -259,12 +268,12 @@ class Task(object):
             folds = self.task.split(X, stratify, groups=groups)
 
         for idx_tr, idx_val in folds:
-            outputs: DataContainer[Any] = DataContainer()
-            outputs.X_train, outputs.y_train = self._split_dataset(X, y, idx_tr)
-            outputs.X_valid, outputs.y_valid = self._split_dataset(X, y, idx_val)
-            outputs.idx_train = idx_tr
-            outputs.idx_valid = idx_val
-            yield outputs
+            oof: DataContainer[Any] = DataContainer()
+            oof.X_train, oof.y_train = self._split_dataset(X, y, idx_tr)
+            oof.X_valid, oof.y_valid = self._split_dataset(X, y, idx_val)
+            oof.idx_train = idx_tr
+            oof.idx_valid = idx_val
+            yield oof
 
     def _split_dataset(
         self, X: ArrayLike, y: Optional[ArrayLike], idx: list[int]
@@ -299,7 +308,7 @@ class Task(object):
         **kwargs,
     ):
         if hasfunc(self.task, "predict") or hasfunc(self.task, "predict_proba"):
-            if self.__load_from.as_posix() == ".":
+            if not self.__train_status:
                 self.fit(X, y, *args, **kwargs)
 
                 if run_predict_on_fit_end:
@@ -309,29 +318,24 @@ class Task(object):
                         return self.predict(X)
 
             else:
-                self.task = PickledBz2Cacher().load(self.__load_from.as_posix())
-
                 if proba:
                     return self.predict_proba(X)
                 else:
                     return self.predict(X)
 
         elif hasfunc(self.task, "transform"):
-            if self.__load_from.as_posix() == ".":
+            if not self.__train_status:
                 self.fit(X, y, *args, **kwargs)
-            else:
-                self.task = PickledBz2Cacher().load(self.__load_from.as_posix())
 
             return self.transform(X, y)
 
         elif hasfunc(self.task, "forward"):
-            if self.__load_from.as_posix() == ".":
+            if not self.__train_status:
                 self.fit(X, y, *args, **kwargs)
 
                 if run_predict_on_fit_end:
                     return self.forward(X)
             else:
-                self.task = PickledBz2Cacher().load(self.__load_from.as_posix())
                 return self.forward(X)
 
         elif hasfunc(self.task, "split"):
@@ -354,7 +358,8 @@ class Task(object):
         return results
 
     def reset_identifier(self) -> None:
-        self.__load_from = Path("")
+        self.__train_status = False
+        self.__identifier = Path("")
         self.task = self.config.task(**self.config.init_params)
 
     def __getstate__(self):
@@ -362,56 +367,79 @@ class Task(object):
 
     def dump_config(self, path: Path, method: str) -> None:
         output: DataContainer[Any] = DataContainer()
-        config = copy.deepcopy(self.config).asdict()
-        config = self.format_config(config)
+        _output = self.format_config(self.config.asdict())
 
         if method == "fit":
-            output.init_params = config.get("init_params")
-            output.fit_params = config.get("fit_params")
-            output.transform_params = config.get("transform_params")
-            output.predict_params = config.get("predict_params")
+            output.init_params = _output.get("init_params")
+            output.fit_params = _output.get("fit_params")
+            output.transform_params = _output.get("transform_params")
+            output.predict_params = _output.get("predict_params")
         elif method == "transform":
-            output.transform_params = config.get("transform_params")
-            output.load_from = config.get("load_from")
+            output.transform_params = _output.get("transform_params")
+            output.load_from = _output.get("load_from")
         elif method == "predict" or method == "predict_proba" or method == "forward":
-            output.predict_params = config.get("predict_params")
-            output.load_from = config.get("load_from")
+            output.predict_params = _output.get("predict_params")
+            output.load_from = _output.get("load_from")
         elif method == "split":
-            output.init_params = config.get("init_params")
+            output.init_params = _output.get("init_params")
 
-        output.cache_processor = config.get("cache_processor")
-        output.seed = config.get("seed")
+        output.cache_processor = _output.get("cache_processor")
+        output.seed = _output.get("seed")
+
         with open(path / "task_config.yml", "w") as f:
             yaml.dump(output, f, indent=4)
 
-    def format_config(self, config: dict[str, Any]) -> dict[str, Any]:
+    def format_config(self, config: Union[dict[str, Any], DataContainer]) -> dict[str, Any]:
+        def format_list(data: list) -> list:
+            for i in range(len(data)):
+                if is_dictlike(data[i]):
+                    data[i] = self.format_config(data[i])
+                elif is_func_or_class(data[i]):
+                    try:
+                        data[i] = data[i].__qualname__
+                    except AttributeError:
+                        data[i] = type(data[i]).__qualname__
+                elif isinstance(data[i], Path):
+                    data[i] = data[i].as_posix()
+                elif isinstance(data[i], list):
+                    data[i] = format_list(data[i])
+                elif not is_builtin_class_instance(v):
+                    data[i] = type(data[i]).__module__
+
+            return data
+
         for k, v in config.items():
             if is_dictlike(v):
                 config[k] = self.format_config(v)
             elif is_func_or_class(v):
-                config[k] = v.__qualname__
-            elif isinstance(v, list):
-                for i in range(len(v)):
-                    if is_dictlike(v[i]):
-                        config[k][i] = self.format_config(v[i])
-                    elif is_func_or_class(v[i]):
-                        config[k][i] = config[k][i].__qualname__
-                    elif not is_builtin_class_instance(v):
-                        config[k] = type(v).__module__
-
+                try:
+                    config[k] = v.__qualname__
+                except AttributeError:
+                    config[k] = type(v).__qualname__
             elif isinstance(v, Path):
                 config[k] = v.as_posix()
+            elif isinstance(v, list):
+                config[k] = format_list(v)
             elif not is_builtin_class_instance(v):
                 config[k] = type(v).__module__
+
         return config
 
     @property
     def identifier(self) -> str:
-        return self.__load_from.as_posix()
+        return self.__identifier.as_posix()
 
     @identifier.setter
     def identifier(self, identifier: Union[Path, str]) -> None:
-        self.__load_from = Path(identifier)
+        self.__identifier = Path(identifier)
+
+    @property
+    def train_status(self):
+        return self.__train_status
+
+    @train_status.setter
+    def train_status(self, flg: bool):
+        self.__train_status = flg
 
     @property
     def repo_dir(self) -> str:
@@ -428,3 +456,7 @@ class Task(object):
     @verbose.setter
     def verbose(self, verbose: bool) -> None:
         self.__verbose = verbose
+
+    @staticmethod
+    def load(path: str):
+        return PickledBz2Cacher().load(path)
