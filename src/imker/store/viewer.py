@@ -24,7 +24,7 @@ class RepositoryViewer:
         task_cache = [p for p in cachefiles if p.suffix != ".yml"]
         yml_cache = [p for p in cachefiles if p.suffix == ".yml"]
 
-        df_task = self._format_df(task_cache).rename(columns={"path": "cachefile"})
+        df_task = self._format_df(task_cache).rename(columns={"path": "cacheFile"})
         df_yml = self._format_df(yml_cache).rename(columns={"path": "config"})
         return df_task.merge(df_yml[["argId", "stateId", "config"]], on=["argId", "stateId"]).drop(
             ["argId", "stateId"], axis=1
@@ -44,7 +44,7 @@ class RepositoryViewer:
             pd.DataFrame(
                 dt,
                 columns=[
-                    "task_id",
+                    "taskId",
                     "lastUpdatedDate",
                     "repo",
                     "method",
@@ -54,7 +54,7 @@ class RepositoryViewer:
                     "path",
                 ],
             )
-            .sort_values(["task_id", "lastUpdatedDate"], ascending=False)
+            .sort_values(["taskId", "lastUpdatedDate"], ascending=False)
             .reset_index(drop=True)
         )
 
@@ -68,7 +68,7 @@ class RepositoryViewer:
         if isinstance(task_id, str):
             return cacher.load(task_id)
         elif isinstance(task_id, int):
-            path = self.search_repo().pipe(lambda x: x[x["task_id"] == task_id]["cachefile"]).item()
+            path = self.search_repo().pipe(lambda x: x[x["taskId"] == task_id]["cacheFile"]).item()
             return cacher.load(path)
         else:
             raise ValueError("argument id must be int or str.")
@@ -80,7 +80,7 @@ class RepositoryViewer:
             return config
 
         elif isinstance(task_id, int):
-            path = self.search_repo().pipe(lambda x: x[x["task_id"] == task_id]["config"]).item()
+            path = self.search_repo().pipe(lambda x: x[x["taskId"] == task_id]["config"]).item()
             with open(path, "r") as f:
                 config = yaml.safe_load(f)
             return config
